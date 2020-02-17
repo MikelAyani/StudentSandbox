@@ -1,5 +1,6 @@
 # Simumatik Student Sandbox
-This repository is for the students doing their project
+
+This repository is for the students doing their project at Simumatik.
 
 The sanbox python scripts (camera_sanbox.py and vr_sandbox.py) can be used with the local installation of the OEP server.
 In order to use them, the files need to be copied to the local cache of the server, located at the user folder and named 'Simumatik', i.e. 'C:/Users/myself/Simumatik'.
