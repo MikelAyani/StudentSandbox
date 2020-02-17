@@ -8,3 +8,5 @@ The server, when is launched, will check if the files exist and will load them i
 Notice that the scripts are loaded just at startup, so changes won't make any effect until the server is restarted.
 
 Just another comment...
+
+test
