@@ -15,7 +15,11 @@ data:
 """
 
 # Imports
+# TODO: In order to use the python 'trimesh' library to deal with mesh files, note that Rtree library needs to be installed manually first in Windows.
+# Use the corresponding wheel here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#rtree
 # TODO: Add required libraries here
+
+
 
 
 # Script
