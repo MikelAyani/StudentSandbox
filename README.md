@@ -7,4 +7,6 @@ In order to use them, the files need to be copied to the local cache of the serv
 The server, when is launched, will check if the files exist and will load them into memory. The scripts will be called at runtime when required.
 Notice that the scripts are loaded just at startup, so changes won't make any effect until the server is restarted.
 
-Just a comment...
+Just another comment...
+
+test
