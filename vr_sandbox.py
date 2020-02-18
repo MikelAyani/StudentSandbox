@@ -24,10 +24,10 @@ return: The script should return a dictionary with the links data, including
 # Script
 def run(
     vr_data: dict
-    )->dict:
+    ):
 
     print(vr_data)
 
-    res = {'link_1': {'radius':0.02, 'length':0.3, 'transform':[0 0 0 0 0 0 1]}}
+    res = {'link_1': {'radius':0.02, 'length':0.3, 'transform':[0, 0, 0, 0, 0, 0, 1]}}
 
     return res
