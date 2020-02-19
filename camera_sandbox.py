@@ -52,6 +52,14 @@ data: A dictionary containing objects to be rendered.
 # Use the corresponding wheel here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#rtree
 # TODO: Add required libraries here
 
+#import numpy as np
+#from PIL import Image
+#from PIL import ImageOps
+#from OpenGL.GL import *
+#from OpenGL.GLU import *
+#from OpenGL.GLUT import *
+#import trimesh
+
 #My first time using GitHub
 
 
@@ -69,6 +77,13 @@ def run(
     for object_name, object_data in data.items():
         num_shapes = len(object_data.get('shapes'))
         print(f"rendering {object_name} with {num_shapes} shapes...")
-    
+        print(f"Frame of {object_name} is {object_data.get('frame')}")
+        for shape_name in object_data['shapes']:
+            origin = object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1])
+            print(origin)
+            #print(object_data['shapes'][shape_name]['origin'])
+        
     filename = settings.get('output_path', 'None')
     print(f"saving results to {filename}...")
+
+
