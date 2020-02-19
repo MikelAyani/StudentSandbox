@@ -54,21 +54,27 @@ data: A dictionary containing objects to be rendered.
 
 #My first time using GitHub
 
-
 # Script
-def run(
-    settings: dict,
-    data: dict
-    ):
 
-    # To load camera settings
-    width = settings.get('width', 800)
-    height = settings.get('height', 600)
-    print(f"camera size is {width} x {height}")
+def run(settings: dict,data: dict):
+
+    # To load camera settings using get, if values are not specified set the normal camera values, if camera format is incorrect throw an Assertion
+    camera_width = settings.get('width', 800)
+    camera_height = settings.get('height', 600)
+    camera_frame = settings.get('frame',[0,0,0,0,0,0,1])
+    camera_vertical_fov = settings.get('vertical_fov',45.0)
+    camera_near = settings.get('near',0.1)
+    camera_far = settings.get('far',100)
+
+    camera_format = settings.get('format','L')
+    assert (camera_format == 'L') and (camera_format == 'RGB')  and (camera_format == 'D') and (camera_format == 'RGBD') ,"Invalid camera format, must be: 'L', 'RGB'', 'D' or 'RGBD'"
 
     for object_name, object_data in data.items():
-        num_shapes = len(object_data.get('shapes'))
-        print(f"rendering {object_name} with {num_shapes} shapes...")
-    
+        print(f"rendering {object_name} with frame: {data[object_name]['frame']}")
+        for a in data[object_name]['shapes']:
+            tipos = data[object_name]['shapes'][a].get('type')
+            print("tipo:")
+            print(tipos)
+            
     filename = settings.get('output_path', 'None')
-    print(f"saving results to {filename}...")
+    print(f"saving results to {filename}...\n")
