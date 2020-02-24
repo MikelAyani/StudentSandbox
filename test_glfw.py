@@ -1,4 +1,5 @@
 import cv2
+from PIL import Image
 import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -9,7 +10,7 @@ DISPLAY_WIDTH = 900
 DISPLAY_HEIGHT = 900
 
 INSTANTIATE_WINDOW = True # Setting this to True allows rendering 10x times faster
-
+USE_PIL = False # OpenCV seems to be faster than PIL
 
 def init_gltf():
     # Initialize the library
@@ -60,7 +61,11 @@ def main():
     image_buffer = glReadPixels(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
     image = np.frombuffer(image_buffer, dtype=np.uint8).reshape(DISPLAY_WIDTH, DISPLAY_HEIGHT, 3)
 
-    cv2.imwrite(r"image.png", image)
+    if USE_PIL:
+        im = Image.fromarray(image)
+        im.save('image.png', "PNG")        
+    else:
+        cv2.imwrite(r"image.png", image)
 
     if not INSTANTIATE_WINDOW:
         clean_gltf(window)
