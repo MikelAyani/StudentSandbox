@@ -4,10 +4,14 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import glfw
 
-def main():
-    DISPLAY_WIDTH = 900
-    DISPLAY_HEIGHT = 900
 
+DISPLAY_WIDTH = 900
+DISPLAY_HEIGHT = 900
+
+INSTANTIATE_WINDOW = True # Setting this to True allows rendering 10x times faster
+
+
+def init_gltf():
     # Initialize the library
     if not glfw.init():
         return
@@ -21,6 +25,17 @@ def main():
 
     # Make the window's context current
     glfw.make_context_current(window)
+    return window
+
+def clean_gltf(window):
+    glfw.destroy_window(window)
+    glfw.terminate()
+
+
+def main():
+
+    if not INSTANTIATE_WINDOW:
+        window = init_gltf()
 
     gluPerspective(90, (DISPLAY_WIDTH / DISPLAY_HEIGHT), 0.01, 12)
 
@@ -47,8 +62,25 @@ def main():
 
     cv2.imwrite(r"image.png", image)
 
-    glfw.destroy_window(window)
-    glfw.terminate()
+    if not INSTANTIATE_WINDOW:
+        clean_gltf(window)
+
 
 if __name__ == "__main__":
-    main()
+    import time
+    now = time.perf_counter()
+
+    # Create Window
+    if INSTANTIATE_WINDOW:
+        window = init_gltf()
+
+    # Loop
+    count = 0
+    while time.perf_counter()-1 <= 1.0:
+        main()
+        count += 1
+    print(count)
+
+    # Close
+    if INSTANTIATE_WINDOW:
+        clean_gltf(window)
