@@ -202,7 +202,6 @@ def run(settings, data):
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, camera_windowWidth, camera_windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
     glBindTexture(GL_TEXTURE_2D, 0)
 
-    depth_texture = glGenTextures(1)
     glBindTexture(GL_TEXTURE_2D, textures[1])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
