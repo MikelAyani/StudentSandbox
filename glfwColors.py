@@ -1,7 +1,5 @@
 import cv2
 import math
-from PIL import Image
-from PIL import ImageOps
 import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -19,13 +17,25 @@ settings = {
     }
 data = {
     'floor': {
-        'frame': [0, -1, 0, 0, 0, 0, 1],
+        'frame': [0, 0, -1, 0, 0, 0, 1],
         'shapes': {
             'plane':{
                 'type': 'plane',
                 'attributes': {
-                    'normal': [0.0, 1.0, 0.0]
+                    'normal': [0.0, 0.0, 1.0]
                 }
+            }
+        }
+    },
+    'test_box2': {
+        'frame': [0, 0, 0, 0, 0, 0, 1],
+        'shapes': {
+            'box':{
+                'type': 'box',
+                'attributes': {
+                    'sizes': [0.1, 0.1, 0.1]
+                }
+
             }
         }
     },
@@ -61,9 +71,11 @@ data = {
     }
 }
 
-INSTANTIATE_WINDOW = False # Setting this to True allows rendering 10x times faster
+INSTANTIATE_WINDOW = True # Setting this to True allows rendering 10x times faster
 camera_windowWidth, camera_windowHeight = settings.get('width', 800), settings.get('height', 600)
-fbo, depth_texture = None, None
+camera_vertical_fov = settings.get('vertical_fov', 45.0)
+camera_near = settings.get('near', 0.1)
+camera_far = settings.get('far', 100.0)
 
 def Transform2Euler(transform):
     """ Converts transform in quaternion to transform in RPY angles in radians.
@@ -146,12 +158,13 @@ def Plane(normal):
     glEnd()
 
 def init_gltf():
-    global camera_windowWidth, camera_windowHeight
+    global camera_windowWidth, camera_windowHeight, camera_vertical_fov, camera_far, camera_near
     # Initialize the library
     if not glfw.init():
         return
     # Set window hint NOT visible
     glfw.window_hint(glfw.VISIBLE, False)
+    
     # Create a windowed mode window and its OpenGL context
     window = glfw.create_window(camera_windowWidth, camera_windowHeight, "hidden window", None, None)
     if not window:
@@ -160,6 +173,17 @@ def init_gltf():
 
     # Make the window's context current
     glfw.make_context_current(window)
+
+    glDepthFunc(GL_LESS)    #Set the mode of the depth buffer
+    glEnable(GL_TEXTURE_2D)
+    glEnable(GL_DEPTH_TEST)
+    glPolygonMode(GL_FRONT, GL_FILL)    
+    glPolygonMode(GL_BACK, GL_FILL)     
+    glShadeModel(GL_SMOOTH)                
+    glMatrixMode(GL_PROJECTION)                 
+    gluPerspective(camera_vertical_fov, float(camera_windowWidth)/float(camera_windowHeight), camera_near, camera_far)
+    glMatrixMode(GL_MODELVIEW)
+
     return window
 
 def clean_gltf(window):
@@ -167,7 +191,7 @@ def clean_gltf(window):
     glfw.terminate()
 
 def run(settings, data):
-    global camera_near, camera_far, camera_vertical_fov, camera_windowWidth, camera_windowHeight, i
+    global camera_near, camera_far, camera_vertical_fov, camera_windowWidth, camera_windowHeight
 
     # To load camera settings
     camera_frame = Transform2Euler(settings.get('frame', [0, 0, 0, 0, 0, 0, 1]))
@@ -181,18 +205,6 @@ def run(settings, data):
 
     if not INSTANTIATE_WINDOW:
             window = init_gltf()
-
-    glClearColor(0.3, 0.3, 0.3, 0.0)   #RGB Alpha
-    glClearDepth(1.0) #Values from 0 to 1 (Stablish the "background" depth)           
-    glDepthFunc(GL_LESS)    #Set the mode of the depth buffer
-    glEnable(GL_TEXTURE_2D)
-    glEnable(GL_DEPTH_TEST)
-    glPolygonMode(GL_FRONT, GL_FILL)    
-    glPolygonMode(GL_BACK, GL_FILL)     
-    glShadeModel(GL_SMOOTH)                
-    glMatrixMode(GL_PROJECTION)                 
-    gluPerspective(camera_vertical_fov, float(camera_windowWidth)/float(camera_windowHeight), camera_near, camera_far)
-    glMatrixMode(GL_MODELVIEW)
 
     array_textures = [0, 0]
     textures = glGenTextures(2, array_textures)
@@ -214,23 +226,19 @@ def run(settings, data):
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[0], 0)
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[1], 0)
     
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) 
     # To load objects data
     for object_name, object_data in data.items():
         obj_frame = Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
-        
-        glLoadIdentity()
-        glTranslatef(camera_frame[0], camera_frame[1], camera_frame[2])
-        glRotatef(camera_frame[3], 1, 0, 0);  glRotatef(camera_frame[4], 0, 1, 0);  glRotatef(camera_frame[5], 0, 0, 1)
 
         for shape_name in object_data['shapes']:
             shape_orig = Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
             shape_type = object_data['shapes'][shape_name].get('type')
 
-            # Move to shape
             glLoadIdentity()
             glTranslatef(camera_frame[0], camera_frame[1], camera_frame[2])
             glRotatef(camera_frame[3], 1, 0, 0);  glRotatef(camera_frame[4], 0, 1, 0);  glRotatef(camera_frame[5], 0, 0, 1)
+            glRotatef(-90, 1, 0, 0) #Put camera in Z axis
 
             glPushMatrix()
             glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
@@ -249,38 +257,48 @@ def run(settings, data):
                 gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
             glPopMatrix()
     
+    glLoadIdentity()
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+    #Save the image in the format desired
+    if camera_format == 'RGB':
+        #Generate RGB image
+            #Obtain the color data in a numpy array
+        glBindTexture(GL_TEXTURE_2D, textures[0])
+        color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        color_data = np.frombuffer(color_str, dtype=np.uint8)
+        matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(camera_windowHeight, camera_windowWidth, 3)
+        #matColor = cv2.cvtColor(matColor, cv2.COLORBGR2GRAY)
+        cv2.imwrite("C:/Users/Simumatik/Simumatik/imageRGB.png", cv2.flip(matColor, 0))
+    elif camera_format == 'L':
+        #Generate RGB image
+            #Obtain the color data in a numpy array
+        glBindTexture(GL_TEXTURE_2D, textures[0])
+        color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        color_data = np.frombuffer(color_str, dtype=np.uint8)
+        matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(camera_windowHeight, camera_windowWidth, 3)
+        matL = cv2.cvtColor(matColor, cv2.COLOR_BGR2GRAY)
+        cv2.imwrite("C:/Users/Simumatik/Simumatik/imageL.png", cv2.flip(matL, 0))
+    elif camera_format == 'D':
+        #Generate D image
+            #Obtain the depth data in a numpy array
+        glBindTexture(GL_TEXTURE_2D, textures[1])
+        depth_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        depth_data = np.frombuffer(depth_str, dtype=np.float32)
+            #Linearize depth values
+        z = depth_data*2.0 - 1.0
+        linearDepth = (2.0 * camera_near * camera_far) / (camera_far + camera_near - z * (camera_far - camera_near))
+        linearDepth = linearDepth/camera_far
+            #Resize 1D matrix to 2D matrix
+        matD = np.reshape((255-255*linearDepth).astype(np.uint8), (camera_windowHeight, camera_windowWidth))
+        cv2.imwrite("C:/Users/Simumatik/Simumatik/imageD.png", cv2.flip(matD, 0))
     
-    #Generate RGB image
-        #Obtain the color data in a numpy array
-    glBindTexture(GL_TEXTURE_2D, textures[0])
-    color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
-    glBindTexture(GL_TEXTURE_2D, 0)
-    color_data = np.frombuffer(color_str, dtype=np.uint8)
-    matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(camera_windowHeight, camera_windowWidth, 3)
-    #matColor = cv2.cvtColor(matColor, cv2.COLORBGR2GRAY)
-    cv2.imwrite("C:/Users/Simumatik/Simumatik/imageRGB.png", cv2.flip(matColor, 0))
-
-    #Generate D image
-        #Obtain the depth data in a numpy array
-    glBindTexture(GL_TEXTURE_2D, textures[1])
-    depth_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT)
-    glBindTexture(GL_TEXTURE_2D, 0)
-    depth_data = np.frombuffer(depth_str, dtype=np.float32)
-        #Linearize depth values
-    z = depth_data*2.0 - 1.0
-    linearDepth = (2.0 * camera_near * camera_far) / (camera_far + camera_near - z * (camera_far - camera_near))
-    linearDepth = linearDepth/camera_far
-        #Resize 1D matrix to 2D matrix
-    matD = np.reshape((255-255*linearDepth).astype(np.uint8), (camera_windowHeight, camera_windowWidth))
-    cv2.imwrite("C:/Users/Simumatik/Simumatik/imageD.png", cv2.flip(matD, 0))
-
-    #glDeleteFramebuffers(1, fbo) 
-    #glDeleteTextures(2, textures) 
-
     if not INSTANTIATE_WINDOW:
         clean_gltf(window)
-
 
 if __name__ == "__main__":
     import time
