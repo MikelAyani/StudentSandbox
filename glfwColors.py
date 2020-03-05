@@ -1,51 +1,3 @@
-"""
-This is a sandbox to test the synthetic camera functionality in Simumatik Open Emulation Platform.
-
-Usage:
-The run method inside this script will be called each time the camera is required to render a scene.
-
-transform: refers to a vector including position and transformation (quaternion) data [x, y, z, qx, qy, qz, qw].
-
-settings: A dictionary containing the camera settings
-    'frame': (float[7]) camera global frame [x, y, z, qx, qy, qz, qw],
-    'width': (int) camera width pixels, 
-    'height': (int) camera height pixels,
-    'vertical_fov':  (float) camera vertical fov in degrees,
-    'near':  (float) camera near plane,
-    'far':  (float) camera far plane,
-    'format':  (str) camera image format: 'L', 'RGB', 'D' or 'RGBD',
-    'output_path': (str) camera image output path (filename),
-
-data: A dictionary containing objects to be rendered.
-    'object_name':
-        'frame': (float[7]) object global frame [x, y, z, qx, qy, qz, qw],
-        'shapes': a dictionary of shapes included in the object
-            'shape_name':
-                'origin': (optional) (float[7]) shape local frame relative to the object [x, y, z, qx, qy, qz, qw],
-                'type': (str) shape type: 'plane', 'box', 'cylinder', 'sphere', 'capsule', 'mesh'
-                'attributes': shape specific attributes
-                    # plane
-                    'normal': (float[3]) x, y, z normal vector of the plane
-
-                    # box
-                    'size': (float[3]) x, y, z sizes of the box
-
-                    # cylinder
-                    'radius': (float) radius of the cylinder
-                    'length': (float) length of the cylinder
-
-                    # capsule
-                    'radius': (float) radius of the capsule
-                    'length': (float) length of the capsule
-
-                    # sphere
-                    'radius': (float) radius of the sphere
-
-                    # mesh
-                    'model': (str) path to the mesh model (GLB file)
-                    'scale': (float[3]) x, y, z axis scale values of the mesh
-
-"""
 import cv2
 import math
 import numpy as np
@@ -53,12 +5,77 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import glfw
 
+settings = {
+    'frame': [0, 0, -10, 0, 0, 0, 1],
+    'width': int(800), # TODO: Remove this temporary solution when DM fixed
+    'height': int(600),
+    'vertical_fov': 45.0,
+    'near':  0.1,
+    'far':  100.0,
+    'format':  'D',
+    'output_path': "C:/Users/Simumatik/Simumatik/foto.png"
+    }
+data = {
+    'floor': {
+        'frame': [0, 0, -1, 0, 0, 0, 1],
+        'shapes': {
+            'plane':{
+                'type': 'plane',
+                'attributes': {
+                    'normal': [0.0, 0.0, 1.0]
+                }
+            }
+        }
+    },
+    'test_box2': {
+        'frame': [0, 0, 0, 0, 0, 0, 1],
+        'shapes': {
+            'box':{
+                'type': 'box',
+                'attributes': {
+                    'sizes': [0.1, 0.1, 0.1]
+                }
 
-INSTANTIATE_WINDOW = False # Setting this to True allows rendering 10x times faster
-# camera_windowWidth, camera_windowHeight = settings.get('width', 800), settings.get('height', 600)
-# camera_vertical_fov = settings.get('vertical_fov', 45.0)
-# camera_near = settings.get('near', 0.1)
-# camera_far = settings.get('far', 100.0)
+            }
+        }
+    },
+    'test_box': {
+        'frame': [0, 0, 1, 0, 0, 0, 1],
+        'shapes': {
+            'box':{
+                'type': 'box',
+                'attributes': {
+                    'sizes': [1.0, 1.0, 1.0]
+                }
+
+            }
+        }
+    },
+    'test_multibody': {
+        'frame': [1, 2, 1, 0, 0, 0, 1],
+        'shapes': {
+            'shape_1':{
+                'type': 'box',
+                'attributes': {
+                    'sizes': [0.5, 0.5, 0.5]
+                }
+            },
+            'shape_2':{
+                'origin': [-0.5, 0, 0, 0, 0, 0, 1],
+                'type': 'sphere',
+                'attributes': {
+                    'radius': 0.3
+                }
+            }
+        }
+    }
+}
+
+INSTANTIATE_WINDOW = True # Setting this to True allows rendering 10x times faster
+camera_windowWidth, camera_windowHeight = settings.get('width', 800), settings.get('height', 600)
+camera_vertical_fov = settings.get('vertical_fov', 45.0)
+camera_near = settings.get('near', 0.1)
+camera_far = settings.get('far', 100.0)
 
 def Transform2Euler(transform):
     """ Converts transform in quaternion to transform in RPY angles in radians.
@@ -221,7 +238,7 @@ def run(settings, data):
             glLoadIdentity()
             glTranslatef(camera_frame[0], camera_frame[1], camera_frame[2])
             glRotatef(camera_frame[3], 1, 0, 0);  glRotatef(camera_frame[4], 0, 1, 0);  glRotatef(camera_frame[5], 0, 0, 1)
-            glRotatef(-90, 1, 0, 0)
+            glRotatef(-90, 1, 0, 0) #Put camera in Z axis
 
             glPushMatrix()
             glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
@@ -240,6 +257,8 @@ def run(settings, data):
                 gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
             glPopMatrix()
     
+    glLoadIdentity()
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     #Save the image in the format desired
@@ -281,3 +300,21 @@ def run(settings, data):
     if not INSTANTIATE_WINDOW:
         clean_gltf(window)
 
+if __name__ == "__main__":
+    import time
+    now = time.perf_counter()
+
+    # Create Window
+    if INSTANTIATE_WINDOW:
+        window = init_gltf()
+
+    # Loop
+    count = 0
+    while time.perf_counter()-now <= 1:
+        run(settings, data)
+        count += 1
+    print(count)
+
+    # Close
+    if INSTANTIATE_WINDOW:
+        clean_gltf(window)
