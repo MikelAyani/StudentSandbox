@@ -4,54 +4,15 @@ import glfw
 import cv2
 import math
 import numpy as np
+import threading
+import time
+
 
 """
 This is a sandbox to test the synthetic camera functionality in Simumatik Open Emulation Platform.
 
 Usage:
-The run method inside this script will be called each time the camera is required to render a scene.
-
-transform: refers to a vector including position and transformation (quaternion) data [x, y, z, qx, qy, qz, qw].
-
-settings: A dictionary containing the camera settings
-    'frame': (float[7]) camera global frame [x, y, z, qx, qy, qz, qw],
-    'width': (int) camera width pixels, 
-    'height': (int) camera height pixels,
-    'vertical_fov':  (float) camera vertical fov in degrees,
-    'near':  (float) camera near plane,
-    'far':  (float) camera far plane,
-    'format':  (str) camera image format: 'L', 'RGB', 'D' or 'RGBD',
-    'output_path': (str) camera image output path (filename),
-
-data: A dictionary containing objects to be rendered.
-    'object_name':
-        'frame': (float[7]) object global frame [x, y, z, qx, qy, qz, qw],
-        'shapes': a dictionary of shapes included in the object
-            'shape_name':
-                'origin': (optional) (float[7]) shape local frame relative to the object [x, y, z, qx, qy, qz, qw],
-                'type': (str) shape type: 'plane', 'box', 'cylinder', 'sphere', 'capsule', 'mesh'
-                'attributes': shape specific attributes
-                    # plane
-                    'normal': (float[3]) x, y, z normal vector of the plane
-
-                    # box
-                    'size': (float[3]) x, y, z sizes of the box
-
-                    # cylinder
-                    'radius': (float) radius of the cylinder
-                    'length': (float) length of the cylinder
-
-                    # capsule
-                    'radius': (float) radius of the capsule
-                    'length': (float) length of the capsule
-
-                    # sphere
-                    'radius': (float) radius of the sphere
-
-                    # mesh
-                    'model': (str) path to the mesh model (GLB file)
-                    'scale': (float[3]) x, y, z axis scale values of the mesh
-
+The camera class is a thread wich will render the scene data sent through the pipe.
 """
 
 def Transform2Euler(transform):
@@ -72,10 +33,16 @@ def Transform2Euler(transform):
 
     return [x, y, z, R, P, Y]
 
-class camera_sanbox():
 
-    def __init__(self, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=100.0, image_format:str='RGB'):
+class synthetic_camera(threading.Thread):
+
+    def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=100.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
         """ Constructor. """
+        # Inherit
+        threading.Thread.__init__(self, name=name, daemon=True)
+        # Setup
+        self.pipe = pipe
+        self.running = True
         self.width = width
         self.height = height
         self.vertical_fov = vertical_fov
@@ -83,12 +50,48 @@ class camera_sanbox():
         self.far = far
         self.format = image_format
         self.frame = [0, 0, 0, 0, 0, 0]
+        self.output_path = output_path
+        self.response = send_response
 
 
-    def initialize(self, window):
+    def run(self):
+        # Initialize environment
+        if glfw.init():
+
+            # Create window
+            glfw.window_hint(glfw.VISIBLE, False)
+            window = glfw.create_window(800, 600, "hidden window", None, None)
+            glfw.make_context_current(window)
+
+            # Initialize
+            self.initialize()
+
+            # Loop
+            while self.running and self.pipe:
+                # Check pipe
+                if self.pipe.poll():
+                    start = time.perf_counter()
+                    self.render(self.pipe.recv())
+                    if self.response:
+                        dt = time.perf_counter() - start
+                        self.pipe.send(f'Image {self.format} rendered in {int(dt*1e3)}ms')
+                # Sleep
+                time.sleep(1e-3)
+
+            # Destroy camera
+            glfw.destroy_window(window)
+
+        # Terminate environment
+        glfw.terminate() 
+
+
+    def stop(self):
+        """ Stop Thread."""
+        self.running = False
+
+
+    def initialize(self):
         """ Initializes OpenGL environment."""
-        self.window = glfw.create_window(800, 600, "my window", None, window)
-        glfw.make_context_current(self.window)
         # Make the window's context current
         glDepthFunc(GL_LESS)    #Set the mode of the depth buffer
         glEnable(GL_TEXTURE_2D)
@@ -175,8 +178,37 @@ class camera_sanbox():
         glEnd()
 
 
-    def render(self, data:dict, output_path:str):
-        ''' Main camera script.'''
+    def render(self, data:dict):
+        ''' Main camera script.
+        data: A dictionary containing objects to be rendered.
+            'object_name':
+                'frame': (float[7]) object global frame including position and transformation (quaternion) [x, y, z, qx, qy, qz, qw],
+                'shapes': a dictionary of shapes included in the object
+                    'shape_name':
+                        'origin': (optional) (float[7]) shape local frame relative to the object [x, y, z, qx, qy, qz, qw],
+                        'type': (str) shape type: 'plane', 'box', 'cylinder', 'sphere', 'capsule', 'mesh'
+                        'attributes': shape specific attributes
+                            # plane
+                            'normal': (float[3]) x, y, z normal vector of the plane
+
+                            # box
+                            'size': (float[3]) x, y, z sizes of the box
+
+                            # cylinder
+                            'radius': (float) radius of the cylinder
+                            'length': (float) length of the cylinder
+
+                            # capsule
+                            'radius': (float) radius of the capsule
+                            'length': (float) length of the capsule
+
+                            # sphere
+                            'radius': (float) radius of the sphere
+
+                            # mesh
+                            'model': (str) path to the mesh model (GLB file)
+                            'scale': (float[3]) x, y, z axis scale values of the mesh
+        '''
         array_textures = [0, 0]
         textures = glGenTextures(2, array_textures)
         glBindTexture(GL_TEXTURE_2D, textures[0])
@@ -200,7 +232,7 @@ class camera_sanbox():
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) 
 
         # To load objects data
-        for object_name, object_data in data.items():
+        for _, object_data in data.items():
             obj_frame = Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
 
             for shape_name in object_data['shapes']:
@@ -239,7 +271,7 @@ class camera_sanbox():
             color_data = np.frombuffer(color_str, dtype=np.uint8)
             matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(self.height, self.width, 3)
             #matColor = cv2.cvtColor(matColor, cv2.COLORBGR2GRAY)
-            cv2.imwrite(output_path, cv2.flip(matColor, 0))
+            cv2.imwrite(self.output_path, cv2.flip(matColor, 0))
 
         # Generate Grayscale image
         elif self.format == 'L':
@@ -249,7 +281,7 @@ class camera_sanbox():
             color_data = np.frombuffer(color_str, dtype=np.uint8)
             matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(self.height, self.width, 3)
             matL = cv2.cvtColor(matColor, cv2.COLOR_BGR2GRAY)
-            cv2.imwrite(output_path, cv2.flip(matL, 0))
+            cv2.imwrite(self.output_path, cv2.flip(matL, 0))
 
         # Generate Depth image
         elif self.format == 'D':
@@ -263,15 +295,16 @@ class camera_sanbox():
             linearDepth = linearDepth/self.far
             # Resize 1D matrix to 2D matrix
             matD = np.reshape((255-255*linearDepth).astype(np.uint8), (self.height, self.width))
-            cv2.imwrite(output_path, cv2.flip(matD, 0))
+            cv2.imwrite(self.output_path, cv2.flip(matD, 0))
 
 
 if __name__ == '__main__':
     import time
+    from multiprocessing import Pipe
     # Create some dummy data
     data = {
         'floor': {
-            'frame': [0, 0, -1, 0, 0, 0, 1],
+            'frame': [0, 0, 0, 0, 0, 0, 1],
             'shapes': {
                 'plane':{
                     'type': 'plane',
@@ -324,26 +357,25 @@ if __name__ == '__main__':
             }
         }
     }
-    
-    if glfw.init():
-        # Create camera
-        glfw.window_hint(glfw.VISIBLE, False)
-        CAMERA_WINDOW = glfw.create_window(800, 600, "hidden window", None, None)
 
-        # Create camera
-        camera = camera_sanbox(image_format='D')
-        camera.initialize(CAMERA_WINDOW)
-        camera.set_frame([0,0, 0, 0, 0, 0, 1])
+    # Create camera
+    pipe, camera_pipe = Pipe()
+    camera = synthetic_camera(
+        pipe=camera_pipe, 
+        image_format='D', 
+        output_path='test.png',
+        send_response=True)
+    camera.set_frame([0, 0, 0, 0, 0, 0, 1])
+    camera.start()
+    print("Camera started.")
+    # Loop
+    counter = 0
+    start = time.perf_counter()
+    for i in range(10):
+        pipe.send(data)
+        print(pipe.recv())  
+    # Stop
+    camera.stop()
+    camera.join()
+    print("Camera destroyed.")
 
-        # Loop
-        counter = 0
-        start = time.perf_counter()
-        while time.perf_counter()-start<1.0:
-            camera.render(data, 'test.png')
-            counter += 1
-        print(f'{counter} images rendered in 1 sec.')
-
-        # Destroy camera
-        glfw.destroy_window(CAMERA_WINDOW)
-    
-    glfw.terminate() 
