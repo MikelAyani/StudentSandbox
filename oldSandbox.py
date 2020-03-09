@@ -1,3 +1,51 @@
+"""
+This is a sandbox to test the synthetic camera functionality in Simumatik Open Emulation Platform.
+
+Usage:
+The run method inside this script will be called each time the camera is required to render a scene.
+
+transform: refers to a vector including position and transformation (quaternion) data [x, y, z, qx, qy, qz, qw].
+
+settings: A dictionary containing the camera settings
+    'frame': (float[7]) camera global frame [x, y, z, qx, qy, qz, qw],
+    'width': (int) camera width pixels, 
+    'height': (int) camera height pixels,
+    'vertical_fov':  (float) camera vertical fov in degrees,
+    'near':  (float) camera near plane,
+    'far':  (float) camera far plane,
+    'format':  (str) camera image format: 'L', 'RGB', 'D' or 'RGBD',
+    'output_path': (str) camera image output path (filename),
+
+data: A dictionary containing objects to be rendered.
+    'object_name':
+        'frame': (float[7]) object global frame [x, y, z, qx, qy, qz, qw],
+        'shapes': a dictionary of shapes included in the object
+            'shape_name':
+                'origin': (optional) (float[7]) shape local frame relative to the object [x, y, z, qx, qy, qz, qw],
+                'type': (str) shape type: 'plane', 'box', 'cylinder', 'sphere', 'capsule', 'mesh'
+                'attributes': shape specific attributes
+                    # plane
+                    'normal': (float[3]) x, y, z normal vector of the plane
+
+                    # box
+                    'size': (float[3]) x, y, z sizes of the box
+
+                    # cylinder
+                    'radius': (float) radius of the cylinder
+                    'length': (float) length of the cylinder
+
+                    # capsule
+                    'radius': (float) radius of the capsule
+                    'length': (float) length of the capsule
+
+                    # sphere
+                    'radius': (float) radius of the sphere
+
+                    # mesh
+                    'model': (str) path to the mesh model (GLB file)
+                    'scale': (float[3]) x, y, z axis scale values of the mesh
+
+"""
 import cv2
 import math
 import numpy as np
@@ -5,77 +53,12 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import glfw
 
-settings = {
-    'frame': [0, 0, -10, 0, 0, 0, 1],
-    'width': int(800), # TODO: Remove this temporary solution when DM fixed
-    'height': int(600),
-    'vertical_fov': 45.0,
-    'near':  0.1,
-    'far':  100.0,
-    'format':  'D',
-    'output_path': "C:/Users/Simumatik/Simumatik/foto.png"
-    }
-data = {
-    'floor': {
-        'frame': [0, 0, -1, 0, 0, 0, 1],
-        'shapes': {
-            'plane':{
-                'type': 'plane',
-                'attributes': {
-                    'normal': [0.0, 0.0, 1.0]
-                }
-            }
-        }
-    },
-    'test_box2': {
-        'frame': [0, 0, 0, 0, 0, 0, 1],
-        'shapes': {
-            'box':{
-                'type': 'box',
-                'attributes': {
-                    'sizes': [0.1, 0.1, 0.1]
-                }
 
-            }
-        }
-    },
-    'test_box': {
-        'frame': [0, 0, 1, 0, 0, 0, 1],
-        'shapes': {
-            'box':{
-                'type': 'box',
-                'attributes': {
-                    'sizes': [1.0, 1.0, 1.0]
-                }
-
-            }
-        }
-    },
-    'test_multibody': {
-        'frame': [1, 2, 1, 0, 0, 0, 1],
-        'shapes': {
-            'shape_1':{
-                'type': 'box',
-                'attributes': {
-                    'sizes': [0.5, 0.5, 0.5]
-                }
-            },
-            'shape_2':{
-                'origin': [-0.5, 0, 0, 0, 0, 0, 1],
-                'type': 'sphere',
-                'attributes': {
-                    'radius': 0.3
-                }
-            }
-        }
-    }
-}
-
-INSTANTIATE_WINDOW = True # Setting this to True allows rendering 10x times faster
-camera_windowWidth, camera_windowHeight = settings.get('width', 800), settings.get('height', 600)
-camera_vertical_fov = settings.get('vertical_fov', 45.0)
-camera_near = settings.get('near', 0.1)
-camera_far = settings.get('far', 100.0)
+INSTANTIATE_WINDOW = False # Setting this to True allows rendering 10x times faster
+# camera_windowWidth, camera_windowHeight = settings.get('width', 800), settings.get('height', 600)
+# camera_vertical_fov = settings.get('vertical_fov', 45.0)
+# camera_near = settings.get('near', 0.1)
+# camera_far = settings.get('far', 100.0)
 
 def Transform2Euler(transform):
     """ Converts transform in quaternion to transform in RPY angles in radians.
@@ -238,7 +221,7 @@ def run(settings, data):
             glLoadIdentity()
             glTranslatef(camera_frame[0], camera_frame[1], camera_frame[2])
             glRotatef(camera_frame[3], 1, 0, 0);  glRotatef(camera_frame[4], 0, 1, 0);  glRotatef(camera_frame[5], 0, 0, 1)
-            glRotatef(-90, 1, 0, 0) #Put camera in Z axis
+            glRotatef(-90, 1, 0, 0)
 
             glPushMatrix()
             glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
@@ -257,11 +240,7 @@ def run(settings, data):
                 gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
             glPopMatrix()
     
-    glLoadIdentity()
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
-    camera_format = 'RGBD'
 
     #Save the image in the format desired
     if camera_format == 'RGB':
@@ -272,7 +251,6 @@ def run(settings, data):
         glBindTexture(GL_TEXTURE_2D, 0)
         color_data = np.frombuffer(color_str, dtype=np.uint8)
         matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(camera_windowHeight, camera_windowWidth, 3)
-        #matColor = cv2.cvtColor(matColor, cv2.COLORBGR2GRAY)
         cv2.imwrite("C:/Users/Simumatik/Simumatik/imageRGB.png", cv2.flip(matColor, 0))
     elif camera_format == 'L':
         #Generate RGB image
@@ -298,62 +276,7 @@ def run(settings, data):
             #Resize 1D matrix to 2D matrix
         matD = np.reshape((255-255*linearDepth).astype(np.uint8), (camera_windowHeight, camera_windowWidth))
         cv2.imwrite("C:/Users/Simumatik/Simumatik/imageD.png", cv2.flip(matD, 0))
-    elif camera_format == 'RGBD':
-        #Generate D data
-            #Obtain the depth data in a numpy array
-        glBindTexture(GL_TEXTURE_2D, textures[1])
-        depth_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT)
-        glBindTexture(GL_TEXTURE_2D, 0)
-        depth_data = np.frombuffer(depth_str, dtype=np.float32)
-            #Linearize depth values
-        z = depth_data*2.0 - 1.0
-        linearDepth = (2.0 * camera_near * camera_far) / (camera_far + camera_near - z * (camera_far - camera_near))
-        linearDepth = linearDepth/camera_far
-        matD = np.reshape((1-linearDepth), (camera_windowHeight, camera_windowWidth))
-        matD255 = np.reshape((255-255*linearDepth), (camera_windowHeight, camera_windowWidth))
-
-        #Generate RGB data
-        glBindTexture(GL_TEXTURE_2D, textures[0])
-        color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE)
-        glBindTexture(GL_TEXTURE_2D, 0)
-        color_data = np.frombuffer(color_str, dtype=np.uint8)
-        matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(camera_windowHeight, camera_windowWidth, 3)
-
-        #Combine for RGBD weighting D
-        matRD = np.multiply(matColor[:, :, 0], matD)
-        matGD = np.multiply(matColor[:, :, 1], matD)
-        matBD = np.multiply(matColor[:, :, 2], matD)
-        matRGBD = np.empty((camera_windowHeight, camera_windowWidth, 3))
-        matRGBD[:, :, 0] = matRD
-        matRGBD[:, :, 1] = matGD
-        matRGBD[:, :, 2] = matBD
-        cv2.imwrite("C:/Users/Simumatik/Simumatik/imageRGBD.png", cv2.flip(matRGBD, 0))
-        #Take RGBD matrix
-        matRGBD = np.empty((camera_windowHeight, camera_windowWidth, 4))
-        matRGBD[:, :, 0] = matColor[:, :, 0]
-        matRGBD[:, :, 1] = matColor[:, :, 1]
-        matRGBD[:, :, 2] = matColor[:, :, 2]
-        matRGBD[:, :, 3] = matD255
-        cv2.imwrite("C:/Users/Simumatik/Simumatik/imageRGBD2.png", cv2.flip(matRGBD, 0))
     
     if not INSTANTIATE_WINDOW:
         clean_gltf(window)
 
-if __name__ == "__main__":
-    import time
-    now = time.perf_counter()
-
-    # Create Window
-    if INSTANTIATE_WINDOW:
-        window = init_gltf()
-
-    # Loop
-    count = 0
-    while time.perf_counter()-now <= 1:
-        run(settings, data)
-        count += 1
-    print(count)
-
-    # Close
-    if INSTANTIATE_WINDOW:
-        clean_gltf(window)
