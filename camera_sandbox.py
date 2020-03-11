@@ -52,6 +52,7 @@ class synthetic_camera(threading.Thread):
         self.frame = [0, 0, 0, 0, 0, 0]
         self.output_path = output_path
         self.response = send_response
+        self.cache = {} # Use this to store local cache data
 
 
     def run(self):
