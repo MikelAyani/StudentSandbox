@@ -6,6 +6,9 @@ import numpy as np
 import threading
 import time
 import png
+from glb_helper import *
+from gltflib import GLTF
+import io
 
 """
 This is a sandbox to test the synthetic camera functionality in Simumatik Open Emulation Platform.
@@ -175,6 +178,86 @@ class synthetic_camera(threading.Thread):
         glVertex3f(-self.far, 0, -self.far)
         glEnd()
 
+    def draw_glb_with_textures(self, glb, primitive):
+        vertices = primitive['POSITION']
+        faces = np.reshape(primitive['indices'], (-1, 3))
+        UV = primitive['TEXCOORD_0']
+        text_ID = primitive['material'].pbrMetallicRoughness.baseColorTexture.index
+        _, texture_data = get_texture(glb, text_ID)
+
+        r = png.Reader(bytes=texture_data).read_flat()
+        l = np.array(r[2], np.int8)
+        tex_data = np.reshape(l, (r[0]*r[1], 3))
+        
+        texture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, texture)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, r[0], r[1], 0, GL_RGB, GL_UNSIGNED_BYTE, tex_data)
+        glGenerateMipmap(GL_TEXTURE_2D)
+        glBegin(GL_TRIANGLES)
+        for a in range(len(faces)):
+            glTexCoord2dv(UV[faces[a,0]])
+            glVertex3fv(100*vertices[faces[a,0]])
+            glTexCoord2dv(UV[faces[a,1]])
+            glVertex3fv(100*vertices[faces[a,1]])
+            glTexCoord2dv(UV[faces[a,2]])
+            glVertex3fv(100*vertices[faces[a,2]])
+        glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+
+    def draw_glb_without_textures(self, primitive):
+        vertices = primitive['POSITION']
+        faces = np.reshape(primitive['indices'], (-1, 3))
+        glBegin(GL_TRIANGLES)
+        for a in range(len(faces)):
+            glVertex3fv(100*vertices[faces[a,0]])
+            glVertex3fv(100*vertices[faces[a,1]])
+            glVertex3fv(100*vertices[faces[a,2]])
+        glEnd()
+
+    def draw_glb(self, path_to_file):
+        _dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
+        _shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
+        try:
+            glb = GLTF.load_glb(path_to_file)
+            # First level
+            main_node = glb.model.scene # Scene is a pointer to the main node
+            translation, rotation, scale = get_node_TRS(glb, main_node)
+            node_mesh = glb.model.nodes[main_node].mesh
+            
+            # If node has a mesh
+            if node_mesh is not None:
+                mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
+                # A mesh may have several primitives
+                for primitive in mesh_data['primitives']:
+                    if primitive['TEXCOORD_0'] is not None:
+                        self.draw_glb_with_textures(glb, primitive)
+                    else:
+                        self.draw_glb_without_textures(primitive)
+
+            # Second level
+            if glb.model.nodes[main_node].children:
+                # A node may have several child nodes
+                for child_node in glb.model.nodes[main_node].children:
+                    translation, rotation, scale = get_node_TRS(glb, child_node)
+                    child_node_mesh = glb.model.nodes[child_node].mesh
+                    # If child node has a mesh
+                    if child_node_mesh is not None:
+                        mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
+                        # A mesh may have several primitives
+                        for primitive in mesh_data['primitives']:
+                            if primitive['TEXCOORD_0'] is not None:
+                                self.draw_glb_with_textures(glb, primitive)
+                            else:
+                                self.draw_glb_without_textures(primitive)
+                    
+        except Exception as e:
+            print('Exception loading', path_to_file, e)  
+
 
     def render(self, data:dict):
         ''' Main camera script.
@@ -223,7 +306,6 @@ class synthetic_camera(threading.Thread):
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[1], 0)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) 
-
  
         # Example response
         # camera_transform = Transform()
@@ -234,7 +316,6 @@ class synthetic_camera(threading.Thread):
         # rot = inv_camera_transform.getRotation()
         # print(f'Camera inv. position: {pos.x} {pos.y} {pos.z} (in meters)')
         # print(f'Camera inv. rotation: {rot.GetX()} {rot.GetY()} {rot.GetZ()} {rot.GetW()} (in quaternion)')
-
 
         # To load objects data
         for _, object_data in data.items():
@@ -263,7 +344,13 @@ class synthetic_camera(threading.Thread):
                 elif shape_type == 'sphere':
                     sphereQ = gluNewQuadric()
                     gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
-
+                elif shape_type == 'mesh':
+                    # if 'cache' not in object_data['shapes'][shape_name]:
+                    #     # Load cache
+                    #     object_data['shapes'][shape_name]['cache'] = self.get_glb_cache(object_data['shapes'][shape_name])
+                    # self.draw_glb(object_data['shapes'][shape_name]['cache'])
+                    self.draw_glb(object_data['shapes'][shape_name]['attributes'].get('model'))
+                    
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         
         # Generate RGB image
@@ -272,8 +359,7 @@ class synthetic_camera(threading.Thread):
             color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
             glBindTexture(GL_TEXTURE_2D, 0)
             color_data = np.frombuffer(color_str, dtype=np.uint8)
-            matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(self.height, self.width*3)      
-            #cv2.imwrite(self.output_path, cv2.flip(matColor, 0))
+            matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(self.height, self.width*3)
             png.from_array(np.flip(matColor,0), mode="RGB").save(self.output_path)
 
         # Generate Grayscale image
@@ -283,8 +369,6 @@ class synthetic_camera(threading.Thread):
             glBindTexture(GL_TEXTURE_2D, 0)
             color_data = np.frombuffer(color_str, dtype=np.uint8)
             matColor = np.frombuffer(color_data, dtype=np.uint8).reshape(self.height, self.width)
-            #matL = cv2.cvtColor(matColor, cv2.COLOR_BGR2GRAY)
-            #cv2.imwrite(self.output_path, cv2.flip(matL, 0))
             png.from_array(np.flip(matColor, 0), mode="L").save(self.output_path)
 
         # Generate Depth image
@@ -299,8 +383,6 @@ class synthetic_camera(threading.Thread):
             linearDepth = linearDepth/self.far
             # Resize 1D matrix to 2D matrix
             matD = np.reshape((255-255*linearDepth).astype(np.uint8), (self.height, self.width))
-            #cv2.imwrite(self.output_path, cv2.flip(matD, 0))
-            #imsave('test.png', matD) #Sirve con skiimage
             png.from_array(np.flip(matD, 0), mode="L").save(self.output_path)
             
         elif self.format == 'RGBD':
@@ -334,12 +416,7 @@ class synthetic_camera(threading.Thread):
             #matRGBD[:, self.width*3:self.width*4] = matD
             #print(matRGBD.shape)
             png.from_array(rgbd_data, mode="RGBA;16").save(self.output_path)
-            
-            
-
-
-            
-
+        
 
 if __name__ == '__main__':
     import time
@@ -398,6 +475,18 @@ if __name__ == '__main__':
                     }
                 }
             }
+        },
+        'glb_archive': {
+            'frame': [4, 0, 1, 0, 0, 0, 1],
+            'shapes': {
+                'glb_1':{
+                    'type': 'mesh',
+                    'attributes': {
+                        'model': 'data/duck.glb',
+                        'scale': [1, 1, 1]
+                    }
+                }
+            }
         }
     }
 
@@ -405,7 +494,7 @@ if __name__ == '__main__':
     pipe, camera_pipe = Pipe()
     camera = synthetic_camera(
         pipe=camera_pipe, 
-        image_format='RGBD', 
+        image_format='RGB', 
         output_path='test.png',
         send_response=True)
     camera.set_frame([-1, -1, -10, 0, 0, 0, 1])
@@ -414,7 +503,7 @@ if __name__ == '__main__':
     # Loop
     counter = 0
     start = time.perf_counter()
-    for i in range(10):
+    for i in range(1):
         pipe.send(data)
         print(pipe.recv())  
     # Stop
