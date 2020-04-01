@@ -15,6 +15,25 @@ Usage:
 The camera class is a thread wich will render the scene data sent through the pipe.
 """
 
+def Transform2Euler(transform):
+    """ Converts transform in quaternion to transform in RPY angles in radians.
+    This is a modified version of this:
+    https://github.com/mrdoob/three.js/blob/22ed6755399fa180ede84bf18ff6cea0ad66f6c0/src/math/Matrix4.js#L24
+    """
+    [x, y, z, qx, qy, qz, qw] = transform
+
+    t = 2 * (qx * qz + qw * qy)
+    P = math.asin(max(min(1, t), -1))
+    if abs(t) < 0.9999999:
+        R = math.atan2(2.0 * (qw * qx - qy * qz), 1.0 - 2.0 * (qx * qx + qy * qy))
+        Y = math.atan2(2.0 * (qw * qz - qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+    else:
+        R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
+        Y = 0
+
+    return [x, y, z, R, P, Y]
+
+
 class synthetic_camera(threading.Thread):
 
     def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=100.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
@@ -76,33 +95,13 @@ class synthetic_camera(threading.Thread):
         glPolygonMode(GL_FRONT, GL_FILL)    
         glPolygonMode(GL_BACK, GL_FILL)     
         glShadeModel(GL_SMOOTH)                
-        glMatrixMode(GL_PROJECTION)             
+        glMatrixMode(GL_PROJECTION)                 
         gluPerspective(self.vertical_fov, self.width/self.height, self.near, self.far)
-        glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
-        glTranslatef(self.frame[0], self.frame[1], self.frame[2]-10)
         glMatrixMode(GL_MODELVIEW)
 
     def set_frame(self, frame:list=[0, 0, 0, 0, 0, 0, 1]):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
-        self.frame = self.Transform2Euler(frame)
-
-    def Transform2Euler(self, transform):
-        """ Converts transform in quaternion to transform in RPY angles in radians.
-        This is a modified version of this:
-        https://github.com/mrdoob/three.js/blob/22ed6755399fa180ede84bf18ff6cea0ad66f6c0/src/math/Matrix4.js#L24
-        """
-        [x, y, z, qx, qy, qz, qw] = transform
-
-        t = 2 * (qx * qz + qw * qy)
-        P = math.asin(max(min(1, t), -1))
-        if abs(t) < 0.9999999:
-            R = math.atan2(2.0 * (qw * qx - qy * qz), 1.0 - 2.0 * (qx * qx + qy * qy))
-            Y = math.atan2(2.0 * (qw * qz - qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
-        else:
-            R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
-            Y = 0
-
-        return [x, z, y, R, Y, P] #Modified because OpenGL has the axis changed respected to Simumatik
+        self.frame = Transform2Euler(frame)
 
     def render_Box(self, vectorLHW):
         """ Render a box given vector[Length, Height, Width]"""
@@ -110,7 +109,6 @@ class synthetic_camera(threading.Thread):
         H=vectorLHW[1]/2
         W=vectorLHW[2]/2
         glBegin(GL_QUADS)
-        glColor3f(1, 1, 1)
         glVertex3f(-L, -H, -W);  glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(-L, -H, W) #1 2 3 4
         glVertex3f(-L, H, -W); glVertex3f(L, H, -W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #5 6 7 8
         glVertex3f(-L, -H, -W); glVertex3f(L, -H, -W); glVertex3f(L, H, -W); glVertex3f(-L, H, -W) #1 2 6 5
@@ -119,28 +117,30 @@ class synthetic_camera(threading.Thread):
         glVertex3f(-L, -H, -W); glVertex3f(-L, -H, W); glVertex3f(-L, H, W); glVertex3f(-L, H, -W) #1 4 8 5
         glEnd()
 
+        glColor3f(1, 1, 1)
+
     def render_Capsule(self, radius, length):
         """ Render capsule given radius and length"""
-        glColor3f(1, 1, 1)
         capsuleQ = gluNewQuadric()
         gluCylinder(capsuleQ, radius, radius, length, 100, 100)
         gluSphere(capsuleQ, radius, 36, 18)
         glTranslatef(0, 0, length)
         gluSphere(capsuleQ, radius, 36, 18)
+        glTranslatef(0, 0, -length) #To get the camera as it was, just in case we don't use glPushMatrix before calling capsule
 
     def render_Cylinder(self, radius, length):
         """ Render cylinder given radius and length"""
-        glColor3f(1, 1, 1)
         cylinderQ = gluNewQuadric()
         gluCylinder(cylinderQ, radius, radius, length, 100, 100)
         gluSphere(cylinderQ, radius, 36, 2)  
         glTranslate(0, 0, length)
         gluSphere(cylinderQ, radius, 36, 2)  
+        glTranslate(0, 0, -length)  
 
     def render_Plane(self, normal):
-        """ Render 2D plane given its normal vector[x, y, z]"""
-        xAngle=np.arctan2(normal[1],normal[2]) * (180/np.pi)
-        yAngle=np.arctan2(normal[2],normal[1]) * (180/np.pi)
+        """ Render 2D plane given its normal vector"""
+        xAngle=np.arctan2(normal[2],normal[1]) * (180/np.pi)
+        yAngle=np.arctan2(normal[0],normal[2]) * (180/np.pi)
         zAngle=np.arctan2(normal[0],normal[1]) * (180/np.pi)
         glRotatef(xAngle, 1, 0, 0)
         glRotatef(yAngle, 0, 1, 0)
@@ -153,7 +153,7 @@ class synthetic_camera(threading.Thread):
         glVertex3f(-self.far, 0, -self.far)
         glEnd()
 
-    def render_glb_with_textures(self, glb, primitive, scale):
+    def render_glb_with_textures(self, glb, primitive):
         """ Render glb with textures"""
         vertices = primitive['POSITION']
         faces = np.reshape(primitive['indices'], (-1, 3))
@@ -175,36 +175,34 @@ class synthetic_camera(threading.Thread):
         glBegin(GL_TRIANGLES)
         for a in range(len(faces)):
             glTexCoord2dv(UV[faces[a,0]])
-            glVertex3fv(scale*vertices[faces[a,0]])
+            glVertex3fv(100*vertices[faces[a,0]])
             glTexCoord2dv(UV[faces[a,1]])
-            glVertex3fv(scale*vertices[faces[a,1]])
+            glVertex3fv(100*vertices[faces[a,1]])
             glTexCoord2dv(UV[faces[a,2]])
-            glVertex3fv(scale*vertices[faces[a,2]])
+            glVertex3fv(100*vertices[faces[a,2]])
         glEnd()
         glBindTexture(GL_TEXTURE_2D, 0)
 
-    def render_glb_without_textures(self, primitive, scale):
+    def render_glb_without_textures(self, primitive):
         """ Render glb shape without colors or textures"""
         vertices = primitive['POSITION']
         faces = np.reshape(primitive['indices'], (-1, 3))
         glBegin(GL_TRIANGLES)
         for a in range(len(faces)):
-            glVertex3fv(scale*vertices[faces[a,0]])
-            glVertex3fv(scale*vertices[faces[a,1]])
-            glVertex3fv(scale*vertices[faces[a,2]])
+            glVertex3fv(100*vertices[faces[a,0]])
+            glVertex3fv(100*vertices[faces[a,1]])
+            glVertex3fv(100*vertices[faces[a,2]])
         glEnd()
 
-    def render_glb(self, path_to_file, scale):
+    def render_glb(self, path_to_file):
         """ Render glb archive limited to the main node and his children"""
         #_dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
         #_shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
         try:
-            scale = [scale[0], scale[2], scale[1]] #Modified because OpenGL has the axis changed respected to Simumatik
             glb = GLTF.load_glb(path_to_file)
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
-            #translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
-            #frame_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+            #translation, rotation, scale = get_node_TRS(glb, main_node)
             node_mesh = glb.model.nodes[main_node].mesh
             
             # If node has a mesh
@@ -212,26 +210,26 @@ class synthetic_camera(threading.Thread):
                 mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                 # A mesh may have several primitives
                 for primitive in mesh_data['primitives']:
-                    if primitive['TEXCOORD_0'] is not None and self.format != 'D':
-                        self.render_glb_with_textures(glb, primitive, scale)
+                    if primitive['TEXCOORD_0'] is not None:
+                        self.render_glb_with_textures(glb, primitive)
                     else:
-                        self.render_glb_without_textures(primitive, scale)
+                        self.render_glb_without_textures(primitive)
 
             # Second level
             if glb.model.nodes[main_node].children:
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
-                    #translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
+                    #translation, rotation, scale = get_node_TRS(glb, child_node)
                     child_node_mesh = glb.model.nodes[child_node].mesh
                     # If child node has a mesh
                     if child_node_mesh is not None:
                         mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
                         # A mesh may have several primitives
                         for primitive in mesh_data['primitives']:
-                            if primitive['TEXCOORD_0'] is not None and self.format != 'D':
-                                self.render_glb_with_textures(glb, primitive, scale)
+                            if primitive['TEXCOORD_0'] is not None:
+                                self.render_glb_with_textures(glb, primitive)
                             else:
-                                self.render_glb_without_textures(primitive, scale)
+                                self.render_glb_without_textures(primitive)
                     
         except Exception as e:
             print('Exception loading', path_to_file, e)  
@@ -283,16 +281,30 @@ class synthetic_camera(threading.Thread):
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[1], 0)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) 
+ 
+        # Example response
+        # camera_transform = Transform()
+        # camera_transform.setOrigin(Vector3(self.frame[0], self.frame[1], self.frame[2]))
+        # camera_transform.setRotation(Quaternion.fromScalars(self.frame[3], self.frame[4], self.frame[5], self.frame[6]))
+        # inv_camera_transform = camera_transform.inverse()
+        # pos = inv_camera_transform.getOrigin()
+        # rot = inv_camera_transform.getRotation()
+        # print(f'Camera inv. position: {pos.x} {pos.y} {pos.z} (in meters)')
+        # print(f'Camera inv. rotation: {rot.GetX()} {rot.GetY()} {rot.GetZ()} {rot.GetW()} (in quaternion)')
 
         # To load objects data
         for _, object_data in data.items():
-            obj_frame = self.Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
+            obj_frame = Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
 
             for shape_name in object_data['shapes']:
-                shape_orig = self.Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
+                shape_orig = Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
                 shape_type = object_data['shapes'][shape_name].get('type')
 
-                glLoadIdentity()  
+                glLoadIdentity()
+                glTranslatef(self.frame[0], self.frame[1], self.frame[2])
+                glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
+                glRotatef(-90, 1, 0, 0)
+
                 glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
                 glRotatef(obj_frame[3]+shape_orig[3], 1, 0, 0); glRotatef(obj_frame[4]+shape_orig[4], 0, 1, 0); glRotatef(obj_frame[5]+shape_orig[5], 0, 0, 1)
 
@@ -308,18 +320,14 @@ class synthetic_camera(threading.Thread):
                     sphereQ = gluNewQuadric()
                     gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
                 elif shape_type == 'mesh':
-                    glLoadIdentity()
-                    glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
-                    glRotatef(obj_frame[3]+shape_orig[3], 1, 0, 0); glRotatef(obj_frame[4]+shape_orig[4], 0, 1, 0); glRotatef(obj_frame[5]+shape_orig[5], 0, 0, 1)
                     # if 'cache' not in object_data['shapes'][shape_name]:
                     #     # Load cache
                     #     object_data['shapes'][shape_name]['cache'] = self.get_glb_cache(object_data['shapes'][shape_name])
                     # self.draw_glb(object_data['shapes'][shape_name]['cache'])
-                    self.render_glb(object_data['shapes'][shape_name]['attributes'].get('model'), object_data['shapes'][shape_name]['attributes'].get('scale'))
-
+                    self.render_glb(object_data['shapes'][shape_name]['attributes'].get('model'))
+                    
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         
-
         # Generate RGB image
         if self.format == 'RGB':
             glBindTexture(GL_TEXTURE_2D, textures[0])
@@ -390,8 +398,20 @@ if __name__ == '__main__':
                 }
             }
         },
+        'test_box2': {
+            'frame': [0, 0, 0, 0, 0, 0, 1],
+            'shapes': {
+                'box':{
+                    'type': 'box',
+                    'attributes': {
+                        'sizes': [0.1, 0.1, 0.1]
+                    }
+
+                }
+            }
+        },
         'test_box': {
-            'frame': [0, 1, 1, 0, 0, 0, 1],
+            'frame': [0, 0, 1, 0, 0, 0, 1],
             'shapes': {
                 'box':{
                     'type': 'box',
@@ -403,7 +423,7 @@ if __name__ == '__main__':
             }
         },
         'test_multibody': {
-            'frame': [1, 1, 1, 0, 0, 0, 1],
+            'frame': [1, 2, 1, 0, 0, 0, 1],
             'shapes': {
                 'shape_1':{
                     'type': 'box',
@@ -421,13 +441,13 @@ if __name__ == '__main__':
             }
         },
         'glb_archive': {
-            'frame': [4, 1, 0, 0, 0, 0, 1],
+            'frame': [4, 0, 1, 0, 0, 0, 1],
             'shapes': {
                 'glb_1':{
                     'type': 'mesh',
                     'attributes': {
                         'model': 'data/duck.glb',
-                        'scale': [100, 100, 100]
+                        'scale': [1, 1, 1]
                     }
                 }
             }
@@ -441,7 +461,7 @@ if __name__ == '__main__':
         image_format='RGB', 
         output_path='test.png',
         send_response=True)
-    camera.set_frame([-1, -10, -1, 0, 0, 0, 1])
+    camera.set_frame([-1, -1, -10, 0, 0, 0, 1])
     camera.start()
     print("Camera started.")
     # Loop

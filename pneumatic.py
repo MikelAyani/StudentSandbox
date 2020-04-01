@@ -76,11 +76,6 @@ class synthetic_camera(threading.Thread):
         glPolygonMode(GL_FRONT, GL_FILL)    
         glPolygonMode(GL_BACK, GL_FILL)     
         glShadeModel(GL_SMOOTH)                
-        glMatrixMode(GL_PROJECTION)             
-        gluPerspective(self.vertical_fov, self.width/self.height, self.near, self.far)
-        glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
-        glTranslatef(self.frame[0], self.frame[1], self.frame[2])
-        glMatrixMode(GL_MODELVIEW)
 
     def set_frame(self, frame:list=[0, 0, 0, 0, 0, 0, 1]):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
@@ -102,15 +97,15 @@ class synthetic_camera(threading.Thread):
             R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
             Y = 0
 
-        return [x, z, y, R, Y, P] #Modified because OpenGL has the axis changed respected to Simumatik
+        return [x, z, y, R*(180/np.pi), Y*(180/np.pi), P*(180/np.pi)] #Modified because OpenGL has the axis changed respected to Simumatik
 
-    def render_Box(self, vectorLHW):
-        """ Render a box given vector[Length, Height, Width]"""
-        L=vectorLHW[0]/2
-        H=vectorLHW[1]/2
-        W=vectorLHW[2]/2
+    def render_Box(self, vectorLWH):
+        """ Render a box given vector[Length, Width, Height]"""
+        L=vectorLWH[0]/2
+        W=vectorLWH[1]/2
+        H=vectorLWH[2]/2
         glBegin(GL_QUADS)
-        glColor3f(1, 1, 1)
+        glColor3f(1,1,1)
         glVertex3f(-L, -H, -W);  glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(-L, -H, W) #1 2 3 4
         glVertex3f(-L, H, -W); glVertex3f(L, H, -W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #5 6 7 8
         glVertex3f(-L, -H, -W); glVertex3f(L, -H, -W); glVertex3f(L, H, -W); glVertex3f(-L, H, -W) #1 2 6 5
@@ -133,9 +128,10 @@ class synthetic_camera(threading.Thread):
         glColor3f(1, 1, 1)
         cylinderQ = gluNewQuadric()
         gluCylinder(cylinderQ, radius, radius, length, 100, 100)
-        gluSphere(cylinderQ, radius, 36, 2)  
+        gluDisk(cylinderQ, 0.0, radius, 64, 1);
+        #gluSphere(cylinderQ, radius, 36, 2)  
         glTranslate(0, 0, length)
-        gluSphere(cylinderQ, radius, 36, 2)  
+        gluDisk(cylinderQ, 0.0, radius, 64, 1)  
 
     def render_Plane(self, normal):
         """ Render 2D plane given its normal vector[x, y, z]"""
@@ -262,6 +258,13 @@ class synthetic_camera(threading.Thread):
                             'model': (str) path to the mesh model (GLB file)
                             'scale': (float[3]) x, y, z axis scale values of the mesh
         '''
+
+        glMatrixMode(GL_PROJECTION)             
+        gluPerspective(self.vertical_fov, self.width/self.height, self.near, self.far)
+        glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
+        glTranslatef(-self.frame[0], -self.frame[1], -self.frame[2])
+        glMatrixMode(GL_MODELVIEW)
+
         array_textures = [0, 0]
         textures = glGenTextures(2, array_textures)
         glBindTexture(GL_TEXTURE_2D, textures[0])
@@ -293,8 +296,10 @@ class synthetic_camera(threading.Thread):
                 shape_type = object_data['shapes'][shape_name].get('type')
 
                 glLoadIdentity()  
-                glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
-                glRotatef(obj_frame[3]+shape_orig[3], 1, 0, 0); glRotatef(obj_frame[4]+shape_orig[4], 0, 1, 0); glRotatef(obj_frame[5]+shape_orig[5], 0, 0, 1)
+                glTranslatef(obj_frame[0], obj_frame[1], obj_frame[2])
+                glRotatef(obj_frame[3], 1, 0, 0); glRotatef(obj_frame[4], 0, 1, 0); glRotatef(obj_frame[5], 0, 0, 1)
+                glTranslatef(shape_orig[0], shape_orig[1], shape_orig[2])
+                glRotatef(shape_orig[3], 1, 0, 0); glRotatef(shape_orig[4], 0, 1, 0); glRotatef(shape_orig[5], 0, 0, 1)
 
                 if shape_type == 'plane':
                     self.render_Plane(object_data['shapes'][shape_name]['attributes'].get('normal'))
@@ -313,17 +318,16 @@ class synthetic_camera(threading.Thread):
                     #     object_data['shapes'][shape_name]['cache'] = self.get_glb_cache(object_data['shapes'][shape_name])
                     # self.draw_glb(object_data['shapes'][shape_name]['cache'])
                     self.render_glb(object_data['shapes'][shape_name]['attributes'].get('model'), object_data['shapes'][shape_name]['attributes'].get('scale'))
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
         
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         # Generate RGB image
         if self.format == 'RGB':
             glBindTexture(GL_TEXTURE_2D, textures[0])
-            color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
+            color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE)
             glBindTexture(GL_TEXTURE_2D, 0)
             matColor = np.frombuffer(color_str, dtype=np.uint8).reshape(self.height, self.width*3)
-            png.from_array(np.flip(matColor,0), mode="RGB").save(self.output_path)
+            png.from_array(np.flip(matColor,(0,1)).copy(), mode="RGB").save(self.output_path)
 
         # Generate Grayscale image
         elif self.format == 'L':
@@ -331,7 +335,7 @@ class synthetic_camera(threading.Thread):
             color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE)
             glBindTexture(GL_TEXTURE_2D, 0)
             matColor = np.frombuffer(color_str, dtype=np.uint8).reshape(self.height, self.width)
-            png.from_array(np.flip(matColor, 0), mode="L").save(self.output_path)
+            png.from_array(np.flip(matColor,(0,1)).copy(), mode="L").save(self.output_path)
 
         # Generate Depth image
         elif self.format == 'D':
@@ -345,7 +349,7 @@ class synthetic_camera(threading.Thread):
             linearDepth = linearDepth/self.far
             # Resize 1D matrix to 2D matrix
             matD = np.reshape((255-255*linearDepth).astype(np.uint8), (self.height, self.width))
-            png.from_array(np.flip(matD, 0), mode="L").save(self.output_path)
+            png.from_array(np.flip(matD,(0,1)).copy(), mode="L").save(self.output_path)
             
         elif self.format == 'RGBD':
             #Generate D data
@@ -359,95 +363,163 @@ class synthetic_camera(threading.Thread):
             linearDepth = (2.0 * self.near * self.far) / (self.far + self.near - z * (self.far - self.near))
             linearDepth = linearDepth/self.far
             matD = np.reshape((255-255*linearDepth).astype(np.uint8), (self.height*self.width, 1))
+            matD = np.flip(matD, (0,1))
 
             #Generate RGB data
             glBindTexture(GL_TEXTURE_2D, textures[0])
-            color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
+            color_str = glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, GL_UNSIGNED_BYTE)
             glBindTexture(GL_TEXTURE_2D, 0)
             matColor = np.frombuffer(color_str, dtype=np.uint8).reshape(self.height*self.width, 3)
+            matColor = np.flip(matColor, (0,1))
             
             #Combine them for RGBD
             matRGBD = np.append(matColor, matD, axis=1).reshape(self.height, self.width*4)
-            png.from_array(np.flip(matRGBD, 0), mode="RGBA").save(self.output_path)
-        
+            png.from_array(matRGBD, mode="RGBA").save(self.output_path)
 
-# if __name__ == '__main__':
-#     import time
-#     from multiprocessing import Pipe
-#     # Create some dummy data
-#     data = {
-#         'floor': {
-#             'frame': [0, 0, 0, 0, 0, 0, 1],
-#             'shapes': {
-#                 'plane':{
-#                     'type': 'plane',
-#                     'attributes': {
-#                         'normal': [0.0, 0.0, 1.0]
-#                     }
-#                 }
-#             }
-#         },
-#         'test_box': {
-#             'frame': [0, 1, 1, 0, 0, 0, 1],
-#             'shapes': {
-#                 'box':{
-#                     'type': 'box',
-#                     'attributes': {
-#                         'sizes': [1.0, 1.0, 1.0]
-#                     }
 
-#                 }
-#             }
-#         },
-#         'test_multibody': {
-#             'frame': [1, 1, 1, 0, 0, 0, 1],
-#             'shapes': {
-#                 'shape_1':{
-#                     'type': 'box',
-#                     'attributes': {
-#                         'sizes': [0.5, 0.5, 0.5]
-#                     }
-#                 },
-#                 'shape_2':{
-#                     'origin': [-0.5, 0, 0, 0, 0, 0, 1],
-#                     'type': 'sphere',
-#                     'attributes': {
-#                         'radius': 0.3
-#                     }
-#                 }
-#             }
-#         },
-#         'glb_archive': {
-#             'frame': [4, 1, 0, 0, 0, 0, 1],
-#             'shapes': {
-#                 'glb_1':{
-#                     'type': 'mesh',
-#                     'attributes': {
-#                         'model': 'data/duck.glb',
-#                         'scale': [100, 100, 100]
-#                     }
-#                 }
-#             }
-#         }
-#     }
+if __name__ == '__main__':
+    import time
+    from multiprocessing import Pipe
+    # Create some dummy data
+    data = {
+        'floor': {
+            'frame': [0, 0, 0, 0, 0, 0, 1],
+            'shapes': {
+                'plane': {
+                    'type': 'plane',
+                    'attributes': {
+                        'normal': [0.0, 0.0, 1.0]
+                    }
+                }
+            }
+        },
+        '722': {
+            'frame': [-2.551, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
+            'shapes': {
+                '737': {
+                    'type': 'box',
+                    'attributes': {
+                        'sizes': [2.12, 0.68, 0.16]
+                    },
+                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                },
+                '742': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                        }, 
+                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                },
+                '748': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                    },
+                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                }
+            }
+        },
+        '783': {
+            'frame': [-0.281, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
+            'shapes': {
+                '798': {
+                    'type': 'box',
+                    'attributes': {
+                        'sizes': [2.12, 0.68, 0.16]
+                    }, 
+                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                }, 
+                '803': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                    },
+                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                },
+                '809': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                    },
+                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                }
+            }
+        },
+        '844': {
+            'frame': [-1.724, -2.099, 0.382, 0.0, 0.0, -0.707, 0.707],
+            'shapes': {
+                '859': {
+                    'type': 'box',
+                    'attributes': {
+                        'sizes': [2.12, 0.68, 0.16]
+                    }, 
+                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                },
+                '864': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                    }, 
+                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                }, 
+                '870': {
+                    'type': 'cylinder',
+                    'attributes': {
+                        'length': 0.68, 'radius': 0.08
+                        },
+                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+                }
+            }
+        }, 
+        '1227': {
+            'frame': [-1.728, 0.106, 0.837, 0.0, 0.0, -0.707, 0.707], 
+            'shapes': {
+                '1244': {
+                    'type': 'cylinder', 
+                    'attributes': {
+                        'length': 0.85, 'radius': 0.02
+                    }, 
+                    'origin': [0.0, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
+                }, 
+                '1250': {
+                    'type': 'cylinder', 
+                    'attributes': {
+                        'length': 0.05, 'radius': 0.07
+                    }, 
+                    'origin': [-0.41, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
+                }
+            }
+        }, 
+        '1359': {
+            'frame': [-1.728, -0.33, 0.831, 0.0, 0.0, 0.0, 1.0], 
+            'shapes': {
+                '1375': {
+                    'type': 'box',
+                    'attributes': {
+                        'sizes': [0.3, 0.02, 0.07]
+                    }
+                }
+            }
+        }
+    }
 
-#     # Create camera
-#     pipe, camera_pipe = Pipe()
-#     camera = synthetic_camera(
-#         pipe=camera_pipe, 
-#         image_format='RGB', 
-#         output_path='test.png',
-#         send_response=True)
-#     camera.set_frame([-1, -10, -1, 0, 0, 0, 1])
-#     camera.start()
-#     print("Camera started.")
-#     # Loop
-#     counter = 0
-#     start = time.perf_counter()
-#     for i in range(1):
-#         pipe.send(data)
-#         print(pipe.recv())  
-#     # Stop
-#     camera.stop()
-#     camera.join()
-#     print("Camera destroyed.")
+    # Create camera
+    pipe, camera_pipe = Pipe()
+    camera = synthetic_camera(
+        pipe=camera_pipe, 
+        image_format='D', 
+        output_path='test.png',
+        send_response=True)
+    camera.set_frame([-2, 7, 2, 0, 0, 0, 1])
+    camera.start()
+    print("Camera started.")
+    # Loop
+    counter = 0
+    start = time.perf_counter()
+    for i in range(1):
+        pipe.send(data)
+        print(pipe.recv())  
+    # Stop
+    camera.stop()
+    camera.join()
+    print("Camera destroyed.")
