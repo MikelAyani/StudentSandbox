@@ -70,7 +70,7 @@ class synthetic_camera(threading.Thread):
 
     def initialize(self):
         """ Initializes OpenGL environment."""
-        glDepthFunc(GL_LESS)    
+        glDepthFunc(GL_LESS)   
         glEnable(GL_TEXTURE_2D)
         glEnable(GL_DEPTH_TEST)
         glPolygonMode(GL_FRONT, GL_FILL)    
