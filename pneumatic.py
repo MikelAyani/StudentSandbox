@@ -127,10 +127,10 @@ class synthetic_camera(threading.Thread):
         """ Render cylinder given radius and length"""
         glColor3f(1, 1, 1)
         cylinderQ = gluNewQuadric()
+        glTranslatef(0, 0, -length/2)
         gluCylinder(cylinderQ, radius, radius, length, 100, 100)
-        gluDisk(cylinderQ, 0.0, radius, 64, 1);
-        #gluSphere(cylinderQ, radius, 36, 2)  
-        glTranslate(0, 0, length)
+        gluDisk(cylinderQ, 0.0, radius, 64, 1) 
+        glTranslatef(0, 0, length)
         gluDisk(cylinderQ, 0.0, radius, 64, 1)  
 
     def render_Plane(self, normal):
@@ -381,136 +381,141 @@ if __name__ == '__main__':
     import time
     from multiprocessing import Pipe
     # Create some dummy data
-    data = {
-        'floor': {
-            'frame': [0, 0, 0, 0, 0, 0, 1],
-            'shapes': {
-                'plane': {
-                    'type': 'plane',
-                    'attributes': {
-                        'normal': [0.0, 0.0, 1.0]
-                    }
-                }
-            }
-        },
-        '722': {
-            'frame': [-2.551, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
-            'shapes': {
-                '737': {
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [2.12, 0.68, 0.16]
-                    },
-                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                },
-                '742': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                        }, 
-                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                },
-                '748': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                    },
-                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                }
-            }
-        },
-        '783': {
-            'frame': [-0.281, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
-            'shapes': {
-                '798': {
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [2.12, 0.68, 0.16]
-                    }, 
-                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                }, 
-                '803': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                    },
-                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                },
-                '809': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                    },
-                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                }
-            }
-        },
-        '844': {
-            'frame': [-1.724, -2.099, 0.382, 0.0, 0.0, -0.707, 0.707],
-            'shapes': {
-                '859': {
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [2.12, 0.68, 0.16]
-                    }, 
-                    'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                },
-                '864': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                    }, 
-                    'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                }, 
-                '870': {
-                    'type': 'cylinder',
-                    'attributes': {
-                        'length': 0.68, 'radius': 0.08
-                        },
-                    'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
-                }
-            }
-        }, 
-        '1227': {
-            'frame': [-1.728, 0.106, 0.837, 0.0, 0.0, -0.707, 0.707], 
-            'shapes': {
-                '1244': {
-                    'type': 'cylinder', 
-                    'attributes': {
-                        'length': 0.85, 'radius': 0.02
-                    }, 
-                    'origin': [0.0, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
-                }, 
-                '1250': {
-                    'type': 'cylinder', 
-                    'attributes': {
-                        'length': 0.05, 'radius': 0.07
-                    }, 
-                    'origin': [-0.41, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
-                }
-            }
-        }, 
-        '1359': {
-            'frame': [-1.728, -0.33, 0.831, 0.0, 0.0, 0.0, 1.0], 
-            'shapes': {
-                '1375': {
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [0.3, 0.02, 0.07]
-                    }
-                }
-            }
-        }
-    }
+    # data = {       #Data for pneumatic conveyor system
+    #     'floor': {
+    #         'frame': [0, 0, 0, 0, 0, 0, 1],
+    #         'shapes': {
+    #             'plane': {
+    #                 'type': 'plane',
+    #                 'attributes': {
+    #                     'normal': [0.0, 0.0, 1.0]
+    #                 }
+    #             }
+    #         }
+    #     },
+    #     '722': {
+    #         'frame': [-2.551, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
+    #         'shapes': {
+    #             '737': {
+    #                 'type': 'box',
+    #                 'attributes': {
+    #                     'sizes': [2.12, 0.68, 0.16]
+    #                 },
+    #                 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             },
+    #             '742': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                     }, 
+    #                 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             },
+    #             '748': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                 },
+    #                 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             }
+    #         }
+    #     },
+    #     '783': {
+    #         'frame': [-0.281, -0.589, 0.382, 0.0, 0.0, 0.0, 1.0],
+    #         'shapes': {
+    #             '798': {
+    #                 'type': 'box',
+    #                 'attributes': {
+    #                     'sizes': [2.12, 0.68, 0.16]
+    #                 }, 
+    #                 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             }, 
+    #             '803': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                 },
+    #                 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             },
+    #             '809': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                 },
+    #                 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             }
+    #         }
+    #     },
+    #     '844': {
+    #         'frame': [-1.724, -2.099, 0.382, 0.0, 0.0, -0.707, 0.707],
+    #         'shapes': {
+    #             '859': {
+    #                 'type': 'box',
+    #                 'attributes': {
+    #                     'sizes': [2.12, 0.68, 0.16]
+    #                 }, 
+    #                 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             },
+    #             '864': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                 }, 
+    #                 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             }, 
+    #             '870': {
+    #                 'type': 'cylinder',
+    #                 'attributes': {
+    #                     'length': 0.68, 'radius': 0.08
+    #                     },
+    #                 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]
+    #             }
+    #         }
+    #     }, 
+    #     '1227': {
+    #         'frame': [-1.728, 0.106, 0.837, 0.0, 0.0, -0.707, 0.707], 
+    #         'shapes': {
+    #             '1244': {
+    #                 'type': 'cylinder', 
+    #                 'attributes': {
+    #                     'length': 0.85, 'radius': 0.02
+    #                 }, 
+    #                 'origin': [0.0, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
+    #             }, 
+    #             '1250': {
+    #                 'type': 'cylinder', 
+    #                 'attributes': {
+    #                     'length': 0.05, 'radius': 0.07
+    #                 }, 
+    #                 'origin': [-0.41, 0.0, 0.0, 0.0, 0.0, 0.7071, 0.7071]
+    #             }
+    #         }
+    #     }, 
+    #     '1359': {
+    #         'frame': [-1.728, -0.33, 0.831, 0.0, 0.0, 0.0, 1.0], 
+    #         'shapes': {
+    #             '1375': {
+    #                 'type': 'box',
+    #                 'attributes': {
+    #                     'sizes': [0.3, 0.02, 0.07]
+    #                 }
+    #             }
+    #         }
+    #     }
+    # }
+
+    #Data for conveyors and door
+    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '530': {'frame': [2.32, 0.0, 0.391, 0.0, 0.0, 1.0, -0.009], 'shapes': {'545': {'type': 'box', 'attributes': {'sizes': [2.12, 0.68, 0.16]}, 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '550': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '556': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}}}, '1088': {'frame': [-0.131, -0.043, 0.387, 0.0, 0.0, 1.0, -0.006], 'shapes': {'1103': {'type': 'box', 'attributes': {'sizes': [2.12, 0.68, 0.16]}, 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '1108': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '1114': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}}}, '1178': {'frame': [1.095, 0.0, 1.06, 0.0, 0.0, 0.0, 1.0], 'shapes': {'1194': {'type': 'box', 'attributes': {'sizes': [0.1, 1.3, 2.0]}}}}, '1582': {'frame': [0.954, -0.649, 0.138, 0.0, 0.0, 0.707, 0.707], 'shapes': {'1598': {'type': 'box', 'attributes': {'sizes': [0.01, 0.1, 0.1]}}}}}
 
     # Create camera
     pipe, camera_pipe = Pipe()
     camera = synthetic_camera(
         pipe=camera_pipe, 
-        image_format='D', 
+        image_format='RGBD', 
         output_path='test.png',
         send_response=True)
-    camera.set_frame([-2, 7, 2, 0, 0, 0, 1])
+    #camera.set_frame([-2, 7, 2, 0, 0, 0, 1]) #Lateral view of pneumatic
+    #camera.set_frame([0, 0, 10, 0.707, 0, 0, 0.707]) #Perfil of pneumatic
+    camera.set_frame([-0.492, 4.04, 1.334, 0, 0, 0, 1]) #For conveyors and door
     camera.start()
     print("Camera started.")
     # Loop
