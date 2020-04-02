@@ -118,6 +118,7 @@ class synthetic_camera(threading.Thread):
         """ Render capsule given radius and length"""
         glColor3f(1, 1, 1)
         capsuleQ = gluNewQuadric()
+        glTranslatef(0, 0, -length/2)
         gluCylinder(capsuleQ, radius, radius, length, 100, 100)
         gluSphere(capsuleQ, radius, 36, 18)
         glTranslatef(0, 0, length)
@@ -298,9 +299,9 @@ class synthetic_camera(threading.Thread):
 
                 glLoadIdentity()  
                 glTranslatef(obj_frame[0], obj_frame[1], obj_frame[2])
-                glRotatef(obj_frame[3], 1, 0, 0); glRotatef(obj_frame[4], 0, 1, 0); glRotatef(obj_frame[5], 0, 0, 1)
+                glRotatef(-obj_frame[3], 1, 0, 0); glRotatef(-obj_frame[4], 0, 1, 0); glRotatef(-obj_frame[5], 0, 0, 1)
                 glTranslatef(shape_orig[0], shape_orig[1], shape_orig[2])
-                glRotatef(shape_orig[3], 1, 0, 0); glRotatef(shape_orig[4], 0, 1, 0); glRotatef(shape_orig[5], 0, 0, 1)
+                glRotatef(-shape_orig[3], 1, 0, 0); glRotatef(-shape_orig[4], 0, 1, 0); glRotatef(-shape_orig[5], 0, 0, 1)
 
                 if shape_type == 'plane':
                     self.render_Plane(object_data['shapes'][shape_name]['attributes'].get('normal'))
