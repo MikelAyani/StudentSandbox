@@ -153,6 +153,11 @@ class synthetic_camera(threading.Thread):
     def render_glb_with_textures(self, glb, primitive, scale):
         """ Render glb primitive with textures"""
         vertices = primitive['POSITION']
+        new_vertices = np.zeros([len(vertices), 3])
+        new_vertices[:, 0] = vertices[:, 0]
+        new_vertices[:, 1] = vertices[:, 2]
+        new_vertices[:, 2] = vertices[:, 1]
+        vertices = new_vertices
         faces = np.reshape(primitive['indices'], (-1, 3))
         UV = primitive['TEXCOORD_0']
         text_ID = primitive['material'].pbrMetallicRoughness.baseColorTexture.index

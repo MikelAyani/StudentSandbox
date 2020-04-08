@@ -153,6 +153,11 @@ class synthetic_camera(threading.Thread):
     def render_glb_with_textures(self, glb, primitive, scale):
         """ Render glb primitive with textures"""
         vertices = primitive['POSITION']
+        new_vertices = np.zeros([len(vertices), 3])
+        new_vertices[:, 0] = vertices[:, 0]
+        new_vertices[:, 1] = vertices[:, 2]
+        new_vertices[:, 2] = vertices[:, 1]
+        vertices = new_vertices
         faces = np.reshape(primitive['indices'], (-1, 3))
         UV = primitive['TEXCOORD_0']
         text_ID = primitive['material'].pbrMetallicRoughness.baseColorTexture.index
@@ -206,7 +211,7 @@ class synthetic_camera(threading.Thread):
 
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
-            translation_node, rotation_node, scale_node = get_node_TRS_2(glb, main_node)
+            translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
             frame_main_node = self.Transform2Euler(np.append(translation_node,rotation_node))
             scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
             node_mesh = glb.model.nodes[main_node].mesh
@@ -228,7 +233,7 @@ class synthetic_camera(threading.Thread):
             if glb.model.nodes[main_node].children:
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
-                    translation_node, rotation_node, scale_node = get_node_TRS_2(glb, child_node)
+                    translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
                     frame_child_node = self.Transform2Euler(np.append(translation_node,rotation_node))
                     scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
                     child_node_mesh = glb.model.nodes[child_node].mesh
@@ -392,32 +397,3 @@ class synthetic_camera(threading.Thread):
             #Combine them for RGBD
             matRGBD = np.append(matColor, matD, axis=1).reshape(self.height, self.width*4)
             png.from_array(matRGBD, mode="RGBA").save(self.output_path)
-
-"""
-if __name__ == '__main__':
-    import time
-    from multiprocessing import Pipe
-    #Data for conveyors and door
-    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '530': {'frame': [2.32, 0.0, 0.391, 0.0, 0.0, 1.0, -0.009], 'shapes': {'545': {'type': 'box', 'attributes': {'sizes': [2.12, 0.68, 0.16]}, 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '550': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '556': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}}}, '1088': {'frame': [-0.131, -0.043, 0.387, 0.0, 0.0, 1.0, -0.006], 'shapes': {'1103': {'type': 'box', 'attributes': {'sizes': [2.12, 0.68, 0.16]}, 'origin': [0.0, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '1108': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}, '1114': {'type': 'cylinder', 'attributes': {'length': 0.68, 'radius': 0.08}, 'origin': [-1.06, 0.0, 0.29, 0.0, 0.0, 0.0, 1.0]}}}, '1178': {'frame': [1.095, 0.0, 1.06, 0.0, 0.0, 0.0, 1.0], 'shapes': {'1194': {'type': 'box', 'attributes': {'sizes': [0.1, 1.3, 2.0]}}}}, '1582': {'frame': [0.954, -0.649, 0.138, 0.0, 0.0, 0.707, 0.707], 'shapes': {'1598': {'type': 'box', 'attributes': {'sizes': [0.01, 0.1, 0.1]}}}}}
-
-    # Create camera
-    pipe, camera_pipe = Pipe()
-    camera = synthetic_camera(
-        pipe=camera_pipe, 
-        image_format='RGBD', 
-        output_path='test.png',
-        send_response=True)
-    camera.set_frame([-0.492, 4.04, 1.334, 0, 0, -0.707, 0.707]) #For conveyors and door
-    camera.start()
-    print("Camera started.")
-    # Loop
-    counter = 0
-    start = time.perf_counter()
-    for i in range(4):
-        pipe.send(data)
-        print(pipe.recv())  
-    # Stop
-    camera.stop()
-    camera.join()
-    print("Camera destroyed.")
-"""
