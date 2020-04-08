@@ -183,44 +183,19 @@ class synthetic_camera(threading.Thread):
     def render_glb_without_textures(self, primitive, scale):
         """ Render glb primitive without colors or textures"""
         vertices = primitive['POSITION']
-        print(vertices)
-        print(vertices.shape)
-        vertices_x = vertices[:, 0]
-        vertices_y = vertices[:, 2]
-        vertices_z = vertices[:, 1]
-        vertices_swapped = np.array([vertices_x, vertices_y, vertices_z]).reshape((len(vertices_x),3))
-        print(vertices_swapped) #Lo hace mal
+        new_vertices = np.zeros([len(vertices), 3])
+        new_vertices[:, 0] = vertices[:, 0]
+        new_vertices[:, 1] = vertices[:, 2]
+        new_vertices[:, 2] = vertices[:, 1]
+        vertices = new_vertices
         faces = np.reshape(primitive['indices'], (-1, 3))
-        """
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')  
-
-        for i in range(len(vertices)):
-            ax.scatter(vertices[i, 0], vertices[i, 2], vertices[i, 1])
-
-        ax.set_xlabel('X Label')
-        ax.set_ylabel('Y Label')
-        ax.set_zlabel('Z Label')
-
-        plt.show()
-        """
+        
         glBegin(GL_TRIANGLES)
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
             glVertex3fv(scale*vertices[faces[a,1]])
             glVertex3fv(scale*vertices[faces[a,2]])
         glEnd()
-
-    def unitVector(self, vector):
-        # convert python list into numpy array
-        vector = np.array(vector)
-        # vector magnitude
-        magnitude = np.sqrt((vector**2).sum())
-        # unit vector calculation
-        unit_vector = vector/magnitude
-        return unit_vector
 
     def render_glb(self, path_to_file, scale):
         """ Render glb archive limited to the main node and his children"""
@@ -232,61 +207,44 @@ class synthetic_camera(threading.Thread):
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
             translation_node, rotation_node, scale_node = get_node_TRS_2(glb, main_node)
-
-            print("Translation node: " + str(translation_node))
-            print("Rotation node: " + str(rotation_node))
-            rotation_node = self.unitVector(rotation_node)
-            print("Rotation unit vector: " + str(rotation_node))
-            print("Scale node: " + str(scale_node))
             frame_main_node = self.Transform2Euler(np.append(translation_node,rotation_node))
-            print("Frame node: " + str(frame_main_node))
             scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
             node_mesh = glb.model.nodes[main_node].mesh
             
+            glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
+            glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
+
             # If node has a mesh
             if node_mesh is not None:
                 mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                 # A mesh may have several primitives
                 for primitive in mesh_data['primitives']:
-                    #glPushMatrix()
-                    glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
-                    #glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
-                    #glMultMatrix(nodematrix)
                     if primitive['TEXCOORD_0'] is not None and self.format != 'D':
                         self.render_glb_with_textures(glb, primitive, scale_main_node)
                     else:
                         self.render_glb_without_textures(primitive, scale_main_node)
-                    #glPopMatrix()
 
             # Second level
             if glb.model.nodes[main_node].children:
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
-                    translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
+                    translation_node, rotation_node, scale_node = get_node_TRS_2(glb, child_node)
                     frame_child_node = self.Transform2Euler(np.append(translation_node,rotation_node))
                     scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
                     child_node_mesh = glb.model.nodes[child_node].mesh
+                    glPushMatrix()
+                    glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
+                    glRotatef(-frame_child_node[3], 1, 0, 0); glRotatef(-frame_child_node[4], 0, 1, 0); glRotatef(-frame_child_node[5], 0, 0, 1)
                     # If child node has a mesh
                     if child_node_mesh is not None:
                         mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
                         # A mesh may have several primitives
                         for primitive in mesh_data['primitives']:
-                            glPushMatrix()
-                            #glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
-                            #glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
-                            #glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
-                            #glRotatef(-frame_child_node[3], 1, 0, 0); glRotatef(-frame_child_node[4], 0, 1, 0); glRotatef(-frame_child_node[5], 0, 0, 1)
-                            #glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
-                            #glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
-                            #glRotatef(-frame_child_node[3], 1, 0, 0); glRotatef(-frame_child_node[4], 0, 1, 0); glRotatef(-frame_child_node[5], 0, 0, 1)
-                            #glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
                             if primitive['TEXCOORD_0'] is not None and self.format != 'D':
-                                #self.render_glb_with_textures(glb, primitive, scale_child_node)
-                                pass
+                                self.render_glb_with_textures(glb, primitive, scale_child_node)
                             else:
-                                #self.render_glb_without_textures(primitive, scale_child_node)
-                                pass
-                            glPopMatrix()
+                                self.render_glb_without_textures(primitive, scale_child_node)
+                    glPopMatrix()
                     
         except Exception as e:
             print('Exception loading', path_to_file, e)  
@@ -440,8 +398,7 @@ if __name__ == '__main__':
     import time
     from multiprocessing import Pipe
     #Data for conveyors and door
-    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '209': {'frame': [-0.92146, -0.57983, 0.07527, 0, 0, 0, 1], 'shapes': {'224': {'type': 'mesh', 'attributes': {'model': 'data/duck_good3.glb', 'scale': [1, 1, 1]}}}}}
-
+    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '134': {'frame': [-0.46808, -0.60671, 0.14855, -0.09225, 0.04347, -0.25542, 0.96144], 'shapes': {'149': {'type': 'mesh', 'attributes': {'model': 'data/pato_grande.glb', 'scale': [0.9999999403953694, 0.9999999403953694, 0.9999999403953694]}}}}, '209': {'frame': [-0.92146, -0.57983, 0.07527, 0.70744, 0.0043, 0.00247, 0.70676], 'shapes': {'224': {'type': 'mesh', 'attributes': {'model': 'data/duck_good3.glb', 'scale': [1, 1, 1]}}}}}
     # Create camera
     pipe, camera_pipe = Pipe()
     camera = synthetic_camera(
@@ -449,7 +406,7 @@ if __name__ == '__main__':
         image_format='D', 
         output_path='test.png',
         send_response=True)
-    camera.set_frame([-0.67799, 0.03814, 0.06862, 0.0, 0.0, -0.69687, 0.71719]) #For conveyors and door
+    camera.set_frame([-0.67799, 0.03814, 0.06862, 0.0, 0.0, -0.69687, 0.71719])
     camera.start()
     print("Camera started.")
     # Loop
@@ -462,5 +419,3 @@ if __name__ == '__main__':
     camera.stop()
     camera.join()
     print("Camera destroyed.")
-
-#[-0.92146, -0.57983, 0.07527, 0.70744, 0.0043, 0.00247, 0.70676]

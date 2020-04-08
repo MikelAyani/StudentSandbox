@@ -17,7 +17,7 @@ The camera class is a thread wich will render the scene data sent through the pi
 
 class synthetic_camera(threading.Thread):
 
-    def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=100.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
+    def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=2.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
         """ Constructor. """
         # Inherit
         threading.Thread.__init__(self, name=name, daemon=True)
@@ -151,7 +151,7 @@ class synthetic_camera(threading.Thread):
         glEnd()
 
     def render_glb_with_textures(self, glb, primitive, scale):
-        """ Render glb with textures"""
+        """ Render glb primitive with textures"""
         vertices = primitive['POSITION']
         faces = np.reshape(primitive['indices'], (-1, 3))
         UV = primitive['TEXCOORD_0']
@@ -181,9 +181,15 @@ class synthetic_camera(threading.Thread):
         glBindTexture(GL_TEXTURE_2D, 0)
 
     def render_glb_without_textures(self, primitive, scale):
-        """ Render glb shape without colors or textures"""
+        """ Render glb primitive without colors or textures"""
         vertices = primitive['POSITION']
+        new_vertices = np.zeros([len(vertices), 3])
+        new_vertices[:, 0] = vertices[:, 0]
+        new_vertices[:, 1] = vertices[:, 2]
+        new_vertices[:, 2] = vertices[:, 1]
+        vertices = new_vertices
         faces = np.reshape(primitive['indices'], (-1, 3))
+        
         glBegin(GL_TRIANGLES)
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
@@ -196,39 +202,49 @@ class synthetic_camera(threading.Thread):
         #_dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
         #_shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
         try:
-            scale = [scale[0], scale[2], scale[1]] #Modified because OpenGL has the axis changed respected to Simumatik
-            glb = GLTF.load_glb(path_to_file)
+            glb = GLTF.load_glb(path_to_file)    
+
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
-            #translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
-            #frame_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+            translation_node, rotation_node, scale_node = get_node_TRS_2(glb, main_node)
+            frame_main_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+            scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
             node_mesh = glb.model.nodes[main_node].mesh
             
+            glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
+            glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
+
             # If node has a mesh
             if node_mesh is not None:
                 mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                 # A mesh may have several primitives
                 for primitive in mesh_data['primitives']:
                     if primitive['TEXCOORD_0'] is not None and self.format != 'D':
-                        self.render_glb_with_textures(glb, primitive, scale)
+                        self.render_glb_with_textures(glb, primitive, scale_main_node)
                     else:
-                        self.render_glb_without_textures(primitive, scale)
+                        self.render_glb_without_textures(primitive, scale_main_node)
 
             # Second level
             if glb.model.nodes[main_node].children:
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
-                    #translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
+                    translation_node, rotation_node, scale_node = get_node_TRS_2(glb, child_node)
+                    frame_child_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+                    scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
                     child_node_mesh = glb.model.nodes[child_node].mesh
+                    glPushMatrix()
+                    glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
+                    glRotatef(-frame_child_node[3], 1, 0, 0); glRotatef(-frame_child_node[4], 0, 1, 0); glRotatef(-frame_child_node[5], 0, 0, 1)
                     # If child node has a mesh
                     if child_node_mesh is not None:
                         mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
                         # A mesh may have several primitives
                         for primitive in mesh_data['primitives']:
                             if primitive['TEXCOORD_0'] is not None and self.format != 'D':
-                                self.render_glb_with_textures(glb, primitive, scale)
+                                self.render_glb_with_textures(glb, primitive, scale_child_node)
                             else:
-                                self.render_glb_without_textures(primitive, scale)
+                                self.render_glb_without_textures(primitive, scale_child_node)
+                    glPopMatrix()
                     
         except Exception as e:
             print('Exception loading', path_to_file, e)  
@@ -259,7 +275,6 @@ class synthetic_camera(threading.Thread):
                             'model': (str) path to the mesh model (GLB file)
                             'scale': (float[3]) x, y, z axis scale values of the mesh
         '''
-
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()            
         gluPerspective(self.vertical_fov, self.width/self.height, self.near, self.far)
