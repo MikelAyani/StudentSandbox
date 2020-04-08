@@ -151,6 +151,57 @@ def get_node_TRS(glb, node_id):
 
     return translation, rotation, scale
 
+def get_node_TRS_2(glb, node_id):
+    '''
+    TRS properties are converted to matrices and postmultiplied in the T * R * S order to compose the transformation matrix; 
+    first the scale is applied to the vertices, then the rotation, and then the translation.
+    '''
+    node = glb.model.nodes[node_id]
+    # Grab matrix
+    if node.matrix is not None:
+        NM = np.array(node.matrix).reshape((4,4)).transpose()
+        '''
+        NM looks like
+        [r00*sx r01*sy r02*sz tx]
+        [r10*sx r11*sy r12*sz ty]
+        [r20*sx r21*sy r22*sz tz]
+        [   0      0      0    1]
+        '''
+        #print(NM)
+        translation = [NM[0][3], NM[1][3], NM[2][3]]
+        
+        sx = np.sqrt(NM[0][0]**2 + NM[1][0]**2 + NM[2][0]**2)
+        sy = np.sqrt(NM[0][1]**2 + NM[1][1]**2 + NM[2][1]**2)
+        sz = np.sqrt(NM[0][2]**2 + NM[1][2]**2 + NM[2][2]**2)
+        scale = [sx, sy, sz]
+        
+        #Recordar que las transformaciones para obtener q son desde la matriz de rotacion
+        w = np.sqrt(1.0 + NM[0][0]/sx + NM[1][1]/sy + NM[2][2]/sz) / 2.0
+        w4 = (4.0 * w)
+        x = (NM[2][1]/sy - NM[1][2]/sz) / w4
+        y = (NM[0][2]/sz - NM[2][0]/sx) / w4
+        z = (NM[1][0]/sx - NM[0][1]/sy) / w4
+        rotation = [x, y, z, w]
+        
+        return translation, rotation, scale
+    
+    if node.translation is not None:
+        translation = node.translation #(X, Y, Z)
+    else:
+        translation = [0, 0, 0]
+
+    if node.rotation is not None:
+        rotation = node.rotation # (X, Y, Z, W)
+    else:
+        rotation = [0, 0, 0, 1]
+
+    if node.scale is not None:
+        scale = node.scale # (X, Y, Z)
+    else:
+        scale = [1, 1, 1]
+
+    return translation, rotation, scale
+
 
 def get_texture(glb, texture_id):
     texture = glb.model.textures[texture_id]
