@@ -109,56 +109,6 @@ def get_node_TRS(glb, node_id):
     node = glb.model.nodes[node_id]
     # Grab matrix
     if node.matrix is not None:
-        '''
-        Asumimng:
-          0   1   2   3
-        [r00 r01 r02 tx]
-          4   5   6   7
-        [r10 r11 r12 ty]
-          8   9  10  11 
-        [r20 r21 r22 tz]
-         12  13  14  15
-        [sx  sy  sz  1]
-        '''
-        translation = [node.matrix[12], node.matrix[13], node.matrix[14]]
-        w = np.sqrt(1.0 + node.matrix[0] + node.matrix[5] + node.matrix[10]) / 2.0
-        w4 = (4.0 * w)
-        x = (node.matrix[6] - node.matrix[9]) / w4
-        y = (node.matrix[8] - node.matrix[2]) / w4
-        z = (node.matrix[1] - node.matrix[4]) / w4
-        rotation = [x, y, z, w]
-        if round(node.matrix[0],3) == round(node.matrix[5],3) == round(node.matrix[10],3):
-            scale = [node.matrix[0], node.matrix[5], node.matrix[10]]
-        else:
-            factor = np.sqrt(node.matrix[0]*node.matrix[0]+node.matrix[5]*node.matrix[5]+node.matrix[10]*node.matrix[10])
-            scale = [factor, factor, factor]
-        return translation, rotation, scale
-    
-    if node.translation is not None:
-        translation = node.translation #(X, Y, Z)
-    else:
-        translation = [0, 0, 0]
-
-    if node.rotation is not None:
-        rotation = node.rotation # (X, Y, Z, W)
-    else:
-        rotation = [0, 0, 0, 1]
-
-    if node.scale is not None:
-        scale = node.scale # (X, Y, Z)
-    else:
-        scale = [1, 1, 1]
-
-    return translation, rotation, scale
-
-def get_node_TRS_2(glb, node_id):
-    '''
-    TRS properties are converted to matrices and postmultiplied in the T * R * S order to compose the transformation matrix; 
-    first the scale is applied to the vertices, then the rotation, and then the translation.
-    '''
-    node = glb.model.nodes[node_id]
-    # Grab matrix
-    if node.matrix is not None:
         NM = np.array(node.matrix).reshape((4,4)).transpose()
         '''
         NM looks like
