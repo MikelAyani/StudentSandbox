@@ -1,3 +1,5 @@
+
+
 from gltflib import GLTF
 import struct
 import numpy as np
@@ -107,8 +109,82 @@ def get_node_TRS(glb, node_id):
     node = glb.model.nodes[node_id]
     # Grab matrix
     if node.matrix is not None:
-        # TODO: Fix this case
-        pass
+        '''
+        Asumimng:
+          0   1   2   3
+        [r00 r01 r02 tx]
+          4   5   6   7
+        [r10 r11 r12 ty]
+          8   9  10  11 
+        [r20 r21 r22 tz]
+         12  13  14  15
+        [sx  sy  sz  1]
+        '''
+        translation = [node.matrix[12], node.matrix[13], node.matrix[14]]
+        w = np.sqrt(1.0 + node.matrix[0] + node.matrix[5] + node.matrix[10]) / 2.0
+        w4 = (4.0 * w)
+        x = (node.matrix[6] - node.matrix[9]) / w4
+        y = (node.matrix[8] - node.matrix[2]) / w4
+        z = (node.matrix[1] - node.matrix[4]) / w4
+        rotation = [x, y, z, w]
+        if round(node.matrix[0],3) == round(node.matrix[5],3) == round(node.matrix[10],3):
+            scale = [node.matrix[0], node.matrix[5], node.matrix[10]]
+        else:
+            factor = np.sqrt(node.matrix[0]*node.matrix[0]+node.matrix[5]*node.matrix[5]+node.matrix[10]*node.matrix[10])
+            scale = [factor, factor, factor]
+        return translation, rotation, scale
+    
+    if node.translation is not None:
+        translation = node.translation #(X, Y, Z)
+    else:
+        translation = [0, 0, 0]
+
+    if node.rotation is not None:
+        rotation = node.rotation # (X, Y, Z, W)
+    else:
+        rotation = [0, 0, 0, 1]
+
+    if node.scale is not None:
+        scale = node.scale # (X, Y, Z)
+    else:
+        scale = [1, 1, 1]
+
+    return translation, rotation, scale
+
+def get_node_TRS_2(glb, node_id):
+    '''
+    TRS properties are converted to matrices and postmultiplied in the T * R * S order to compose the transformation matrix; 
+    first the scale is applied to the vertices, then the rotation, and then the translation.
+    '''
+    node = glb.model.nodes[node_id]
+    # Grab matrix
+    if node.matrix is not None:
+        NM = np.array(node.matrix).reshape((4,4)).transpose()
+        '''
+        NM looks like
+        [r00*sx r01*sy r02*sz tx]
+        [r10*sx r11*sy r12*sz ty]
+        [r20*sx r21*sy r22*sz tz]
+        [   0      0      0    1]
+        '''
+        #print(NM)
+        translation = [NM[0][3], NM[1][3], NM[2][3]]
+        
+        sx = np.sqrt(NM[0][0]**2 + NM[1][0]**2 + NM[2][0]**2)
+        sy = np.sqrt(NM[0][1]**2 + NM[1][1]**2 + NM[2][1]**2)
+        sz = np.sqrt(NM[0][2]**2 + NM[1][2]**2 + NM[2][2]**2)
+        scale = [sx, sy, sz]
+        
+        #Recordar que las transformaciones para obtener q son desde la matriz de rotacion
+        w = np.sqrt(1.0 + NM[0][0]/sx + NM[1][1]/sy + NM[2][2]/sz) / 2.0
+        w4 = (4.0 * w)
+        x = (NM[2][1]/sy - NM[1][2]/sz) / w4
+        y = (NM[0][2]/sz - NM[2][0]/sx) / w4
+        z = (NM[1][0]/sx - NM[0][1]/sy) / w4
+        rotation = [x, y, z, w]
+        
+        return translation, rotation, scale
+    
     if node.translation is not None:
         translation = node.translation #(X, Y, Z)
     else:
@@ -140,58 +216,60 @@ def get_texture(glb, texture_id):
         return ('', None)
 
 
-# def save_texture_to_file(glb, texture_id):
-#     if glb.model.textures is not None:
-#         (texture_name, data) = get_texture(glb, texture_id)
-#         if texture_name:
-#             print(f"Texture found: {texture_name}")
-#             with open('data/duck.png', 'wb') as f:
-#                 f.write(data)
+def save_texture_to_file(glb, texture_id):
+    if glb.model.textures is not None:
+        (texture_name, data) = get_texture(glb, i)
+        if texture_name:
+            print(f"Texture found: {texture_name}")
+            with open(join(CACHE_FOLDER, texture_name), 'wb') as f:
+                f.write(data)
 
 
-# if __name__ == '__main__':
-        
-#     try:
-#         ''' NOTE! THIS EXAMPLE CODE ASUMES THAT THE GLB FILES HAVE JUST A NODE DISTRIBUTION WITH TWO LEVELS, THE SCENE AND ITS CHILDREN.'''
-#         # Load file
-#         filename = 'data/duck.glb'
-#         glb = GLTF.load_glb(filename)
-#         textures = glb.model.textures
-#         save_texture_to_file(glb, len(textures)-1)
+if __name__ == '__main__':
+    from oep_globals import CACHE_FOLDER
+    from os import listdir
+    from os.path import isfile, join
 
-#         # First level
-#         main_node = glb.model.scene # Scene is a pointer to the main node
-#         translation, rotation, scale = get_node_TRS(glb, main_node)
-#         node_mesh = glb.model.nodes[main_node].mesh
-        
-#         # If node has a mesh
-#         if node_mesh is not None:
-#             mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
-#             #save_texture_to_file()
-#             # A mesh may have several primitives
-#             for primitive in mesh_data['primitives']:
-#                 vertices = primitive['POSITION']
-#                 faces = primitive['indices']
-#                 print(f'Mesh {node_mesh} found with {len(vertices)} vertices.')
-#                 print(f'Mesh {node_mesh} found with {len(faces)} faces.')
 
-#         # Second level
-#         if glb.model.nodes[main_node].children:
-#             # A node may have several child nodes
-#             for child_node in glb.model.nodes[main_node].children:
-#                 translation, rotation, scale = get_node_TRS(glb, child_node)
-#                 child_node_mesh = glb.model.nodes[child_node].mesh
-#                 # If child node has a mesh
-#                 if child_node_mesh is not None:
-#                     mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
-#                     # A mesh may have several primitives
-#                     for primitive in mesh_data['primitives']:
-#                         vertices = primitive['POSITION']
-#                         faces = primitive['indices']
-#                         print(f'Mesh child {child_node_mesh} found with {len(vertices)} vertices.')
-#                         print(f'Mesh child {child_node_mesh} found with {len(faces)} faces.')
+    for filename in ['ba90b73d-744a-11ea-9c8b-06fe7d6a1d26.glb','8da10e70-56ed-11ea-b8aa-063ea404e626.glb']:#listdir(CACHE_FOLDER):
+        if isfile(join(CACHE_FOLDER, filename)) and '.glb' in filename:
+            try:
+                ''' NOTE! THIS EXAMPLE CODE ASUMES THAT THE GLB FILES HAVE JUST A NODE DISTRIBUTION WITH TWO LEVELS, THE SCENE AND ITS CHILDREN.'''
+                # Load file
+                print(filename)
+                glb = GLTF.load_glb(join(CACHE_FOLDER, filename))
 
-                    
-#     except Exception as e:
-#         print('Exception:', filename, e)
-#     #break
+                # Scene
+                if glb.model.scene is not None:
+                    scene = glb.model.scenes[glb.model.scene]
+                    for main_node in scene.nodes:
+                        # First level
+                        translation, rotation, scale = get_node_TRS(glb, main_node)
+                        print(translation, rotation, scale)
+                        node_mesh = glb.model.nodes[main_node].mesh
+                        # If node has a mesh
+                        if node_mesh is not None:
+                            mesh_data = get_mesh_data(glb, node_mesh, vertex_only=True)
+                            # A mesh may have several primitives
+                            for primitive in mesh_data['primitives']:
+                                vertices = primitive['POSITION']
+                                print(f'Mesh {node_mesh} found with {len(vertices)} vertices.')
+
+                        # Second level
+                        if glb.model.nodes[main_node].children:
+                            # A node may have several child nodes
+                            for child_node in glb.model.nodes[main_node].children:
+                                translation, rotation, scale = get_node_TRS(glb, child_node)
+                                child_node_mesh = glb.model.nodes[child_node].mesh
+                                # If child node has a mesh
+                                if child_node_mesh is not None:
+                                    mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=True)
+                                    # A mesh may have several primitives
+                                    for primitive in mesh_data['primitives']:
+                                        vertices = primitive['POSITION']
+                                        print(f'Mesh {child_node_mesh} found with {len(vertices)} vertices.')
+                            
+            except Exception as e:
+                print('Exception:', filename, e)
+            #break
+            

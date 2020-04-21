@@ -8,32 +8,12 @@ import time
 import png
 from glb_helper import *
 from gltflib import GLTF
-from smtk_bullet import (Vector3, Quaternion, Transform)
 
 """
 This is a sandbox to test the synthetic camera functionality in Simumatik Open Emulation Platform.
 Usage:
 The camera class is a thread wich will render the scene data sent through the pipe.
 """
-
-def Transform2Euler(transform):
-    """ Converts transform in quaternion to transform in RPY angles in radians.
-    This is a modified version of this:
-    https://github.com/mrdoob/three.js/blob/22ed6755399fa180ede84bf18ff6cea0ad66f6c0/src/math/Matrix4.js#L24
-    """
-    [x, y, z, qx, qy, qz, qw] = transform
-
-    t = 2 * (qx * qz + qw * qy)
-    P = math.asin(max(min(1, t), -1))
-    if abs(t) < 0.9999999:
-        R = math.atan2(2.0 * (qw * qx - qy * qz), 1.0 - 2.0 * (qx * qx + qy * qy))
-        Y = math.atan2(2.0 * (qw * qz - qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
-    else:
-        R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
-        Y = 0
-
-    return [x, z, y, R, Y, P] #Modified because OpenGL has the axis changed respected to Simumatik
-
 
 class synthetic_camera(threading.Thread):
 
@@ -90,20 +70,39 @@ class synthetic_camera(threading.Thread):
 
     def initialize(self):
         """ Initializes OpenGL environment."""
-        glDepthFunc(GL_LESS)    
+        glDepthFunc(GL_LESS)   
         glEnable(GL_TEXTURE_2D)
         glEnable(GL_DEPTH_TEST)
         glPolygonMode(GL_FRONT, GL_FILL)    
         glPolygonMode(GL_BACK, GL_FILL)     
         glShadeModel(GL_SMOOTH)                
-        glMatrixMode(GL_PROJECTION)                 
+        glMatrixMode(GL_PROJECTION)             
         gluPerspective(self.vertical_fov, self.width/self.height, self.near, self.far)
+        glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
+        glTranslatef(self.frame[0], self.frame[1], self.frame[2])
         glMatrixMode(GL_MODELVIEW)
 
     def set_frame(self, frame:list=[0, 0, 0, 0, 0, 0, 1]):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
-        self.frame = Transform2Euler(frame)
-        self.frame_q = frame
+        self.frame = self.Transform2Euler(frame)
+
+    def Transform2Euler(self, transform):
+        """ Converts transform in quaternion to transform in RPY angles in radians.
+        This is a modified version of this:
+        https://github.com/mrdoob/three.js/blob/22ed6755399fa180ede84bf18ff6cea0ad66f6c0/src/math/Matrix4.js#L24
+        """
+        [x, y, z, qx, qy, qz, qw] = transform
+
+        t = 2 * (qx * qz + qw * qy)
+        P = math.asin(max(min(1, t), -1))
+        if abs(t) < 0.9999999:
+            R = math.atan2(2.0 * (qw * qx - qy * qz), 1.0 - 2.0 * (qx * qx + qy * qy))
+            Y = math.atan2(2.0 * (qw * qz - qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+        else:
+            R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
+            Y = 0
+
+        return [x, z, y, R, Y, P] #Modified because OpenGL has the axis changed respected to Simumatik
 
     def render_Box(self, vectorLHW):
         """ Render a box given vector[Length, Height, Width]"""
@@ -204,7 +203,8 @@ class synthetic_camera(threading.Thread):
             glb = GLTF.load_glb(path_to_file)
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
-            #translation, rotation, scale = get_node_TRS(glb, main_node)
+            #translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
+            #frame_node = self.Transform2Euler(np.append(translation_node,rotation_node))
             node_mesh = glb.model.nodes[main_node].mesh
             
             # If node has a mesh
@@ -221,7 +221,7 @@ class synthetic_camera(threading.Thread):
             if glb.model.nodes[main_node].children:
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
-                    #translation, rotation, scale = get_node_TRS(glb, child_node)
+                    #translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
                     child_node_mesh = glb.model.nodes[child_node].mesh
                     # If child node has a mesh
                     if child_node_mesh is not None:
@@ -283,32 +283,16 @@ class synthetic_camera(threading.Thread):
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[1], 0)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) 
- 
-        # Example response
-        camera_transform = Transform()
-        camera_transform.setOrigin(Vector3(self.frame_q[0], self.frame_q[1], self.frame_q[2]))
-        camera_transform.setRotation(Quaternion.fromScalars(self.frame_q[3], self.frame_q[4], self.frame_q[5], self.frame_q[6]))
-        inv_camera_transform = camera_transform.inverse()
-        pos = inv_camera_transform.getOrigin()
-        rot = inv_camera_transform.getRotation()
-        rot_euler = rot.getEulerAngles() * (180/np.pi)
-        self.frame = [pos.x, pos.z, pos.y, rot_euler.x, rot_euler.z, rot_euler.y]
-        print(f'Camera inv. position: {self.frame[0]} {self.frame[1]} {self.frame[2]} (in meters)')
-        print(f'Camera inv. rotation: {self.frame[3]} {self.frame[4]} {self.frame[5]} (in degrees)')
 
         # To load objects data
         for _, object_data in data.items():
-            obj_frame = Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
+            obj_frame = self.Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
 
             for shape_name in object_data['shapes']:
-                shape_orig = Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
+                shape_orig = self.Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
                 shape_type = object_data['shapes'][shape_name].get('type')
 
-                glLoadIdentity()
-                glTranslatef(-self.frame[0], -self.frame[1], -self.frame[2])
-                glRotatef(self.frame[3], 1, 0, 0);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[5], 0, 0, 1)
-                #glRotatef(-90, 1, 0, 0)
-
+                glLoadIdentity()  
                 glTranslatef(obj_frame[0]+shape_orig[0], obj_frame[1]+shape_orig[1], obj_frame[2]+shape_orig[2])
                 glRotatef(obj_frame[3]+shape_orig[3], 1, 0, 0); glRotatef(obj_frame[4]+shape_orig[4], 0, 1, 0); glRotatef(obj_frame[5]+shape_orig[5], 0, 0, 1)
 
@@ -329,9 +313,10 @@ class synthetic_camera(threading.Thread):
                     #     object_data['shapes'][shape_name]['cache'] = self.get_glb_cache(object_data['shapes'][shape_name])
                     # self.draw_glb(object_data['shapes'][shape_name]['cache'])
                     self.render_glb(object_data['shapes'][shape_name]['attributes'].get('model'), object_data['shapes'][shape_name]['attributes'].get('scale'))
-                    
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         
+
         # Generate RGB image
         if self.format == 'RGB':
             glBindTexture(GL_TEXTURE_2D, textures[0])
@@ -386,83 +371,83 @@ class synthetic_camera(threading.Thread):
             png.from_array(np.flip(matRGBD, 0), mode="RGBA").save(self.output_path)
         
 
-if __name__ == '__main__':
-    import time
-    from multiprocessing import Pipe
-    # Create some dummy data
-    data = {
-        'floor': {
-            'frame': [0, 0, 0, 0, 0, 0, 1],
-            'shapes': {
-                'plane':{
-                    'type': 'plane',
-                    'attributes': {
-                        'normal': [0.0, 0.0, 1.0]
-                    }
-                }
-            }
-        },
-        'test_box': {
-            'frame': [0, 1, 1, 0, 0, 0, 1],
-            'shapes': {
-                'box':{
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [1.0, 1.0, 1.0]
-                    }
+# if __name__ == '__main__':
+#     import time
+#     from multiprocessing import Pipe
+#     # Create some dummy data
+#     data = {
+#         'floor': {
+#             'frame': [0, 0, 0, 0, 0, 0, 1],
+#             'shapes': {
+#                 'plane':{
+#                     'type': 'plane',
+#                     'attributes': {
+#                         'normal': [0.0, 0.0, 1.0]
+#                     }
+#                 }
+#             }
+#         },
+#         'test_box': {
+#             'frame': [0, 1, 1, 0, 0, 0, 1],
+#             'shapes': {
+#                 'box':{
+#                     'type': 'box',
+#                     'attributes': {
+#                         'sizes': [1.0, 1.0, 1.0]
+#                     }
 
-                }
-            }
-        },
-        'test_multibody': {
-            'frame': [1, 1, 1, 0, 0, 0, 1],
-            'shapes': {
-                'shape_1':{
-                    'type': 'box',
-                    'attributes': {
-                        'sizes': [0.5, 0.5, 0.5]
-                    }
-                },
-                'shape_2':{
-                    'origin': [-0.5, 0, 0, 0, 0, 0, 1],
-                    'type': 'sphere',
-                    'attributes': {
-                        'radius': 0.3
-                    }
-                }
-            }
-        },
-        'glb_archive': {
-            'frame': [4, 1, 0, 0, 0, 0, 1],
-            'shapes': {
-                'glb_1':{
-                    'type': 'mesh',
-                    'attributes': {
-                        'model': 'data/duck.glb',
-                        'scale': [100, 100, 100]
-                    }
-                }
-            }
-        }
-    }
+#                 }
+#             }
+#         },
+#         'test_multibody': {
+#             'frame': [1, 1, 1, 0, 0, 0, 1],
+#             'shapes': {
+#                 'shape_1':{
+#                     'type': 'box',
+#                     'attributes': {
+#                         'sizes': [0.5, 0.5, 0.5]
+#                     }
+#                 },
+#                 'shape_2':{
+#                     'origin': [-0.5, 0, 0, 0, 0, 0, 1],
+#                     'type': 'sphere',
+#                     'attributes': {
+#                         'radius': 0.3
+#                     }
+#                 }
+#             }
+#         },
+#         'glb_archive': {
+#             'frame': [4, 1, 0, 0, 0, 0, 1],
+#             'shapes': {
+#                 'glb_1':{
+#                     'type': 'mesh',
+#                     'attributes': {
+#                         'model': 'data/duck.glb',
+#                         'scale': [100, 100, 100]
+#                     }
+#                 }
+#             }
+#         }
+#     }
 
-    # Create camera
-    pipe, camera_pipe = Pipe()
-    camera = synthetic_camera(
-        pipe=camera_pipe, 
-        image_format='RGB', 
-        output_path='test.png',
-        send_response=True)
-    camera.set_frame([-1, -10, -1, 0, 0, 0, 1])
-    camera.start()
-    print("Camera started.")
-    # Loop
-    counter = 0
-    start = time.perf_counter()
-    for i in range(1):
-        pipe.send(data)
-        print(pipe.recv())  
-    # Stop
-    camera.stop()
-    camera.join()
-    print("Camera destroyed.")
+#     # Create camera
+#     pipe, camera_pipe = Pipe()
+#     camera = synthetic_camera(
+#         pipe=camera_pipe, 
+#         image_format='RGB', 
+#         output_path='test.png',
+#         send_response=True)
+#     camera.set_frame([-1, -10, -1, 0, 0, 0, 1])
+#     camera.start()
+#     print("Camera started.")
+#     # Loop
+#     counter = 0
+#     start = time.perf_counter()
+#     for i in range(1):
+#         pipe.send(data)
+#         print(pipe.recv())  
+#     # Stop
+#     camera.stop()
+#     camera.join()
+#     print("Camera destroyed.")
