@@ -35,24 +35,6 @@ class synthetic_camera(threading.Thread):
         self.output_path = output_path
         self.response = send_response
 
-    def Transform2Euler(self, transform):
-        """ Converts transform in quaternion to transform in RPY angles in radians.
-        This is a modified version of this:
-        https://github.com/mrdoob/three.js/blob/22ed6755399fa180ede84bf18ff6cea0ad66f6c0/src/math/Matrix4.js#L24
-        """
-        [x, y, z, qx, qy, qz, qw] = transform
-
-        t = 2 * (qx * qz + qw * qy)
-        P = math.asin(max(min(1, t), -1))
-        if abs(t) < 0.9999999:
-            R = math.atan2(2.0 * (qw * qx - qy * qz), 1.0 - 2.0 * (qx * qx + qy * qy))
-            Y = math.atan2(2.0 * (qw * qz - qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
-        else:
-            R = math.atan2(2.0 * (qy * qz + qw * qx), 1.0 - 2.0 * (qx * qx + qz * qz))
-            Y = 0 
-
-        return [x, z, y, np.rad2deg(P), np.rad2deg(Y), np.rad2deg(R)]
-
     def run(self):
         # Initialize environment
         if glfw.init():
@@ -98,7 +80,7 @@ class synthetic_camera(threading.Thread):
 
     def set_frame(self, frame:list=[0, 0, 0, 0, 0, 0, 1]):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
-        self.frame = self.Transform2Euler(frame)
+        self.frame = Transform2EulerOpenGL(frame)
 
     def render_Box(self, vectorLWH):
         """ Render a box given vector[Length, Width, Height]"""
@@ -145,10 +127,10 @@ class synthetic_camera(threading.Thread):
         glRotatef(zAngle, 0, 0, 1)
         glBegin(GL_QUADS)
         glColor3f(1, 0, 0)
-        glVertex3f(-100, 0, 100)        
-        glVertex3f(100, 0, 100)        
-        glVertex3f(100, 0, -100)        
-        glVertex3f(-100, 0, -100)
+        glVertex3f(-self.far, 0, self.far)        
+        glVertex3f(self.far, 0, self.far)        
+        glVertex3f(self.far, 0, -self.far)        
+        glVertex3f(-self.far, 0, -self.far)
         glEnd()
 
     def render_glb_with_textures(self, glb, primitive, scale):
@@ -213,12 +195,12 @@ class synthetic_camera(threading.Thread):
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
             translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
-            frame_main_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+            frame_main_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
             scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
             node_mesh = glb.model.nodes[main_node].mesh
             
             glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
-            glRotatef(-frame_main_node[5], 1, 0, 0); glRotatef(-frame_main_node[3], 0, 0, 1); glRotatef(-frame_main_node[4], 0, 1, 0) 
+            glRotatef(-frame_main_node[3], 1, 0, 0); glRotatef(-frame_main_node[4], 0, 1, 0); glRotatef(-frame_main_node[5], 0, 0, 1)
 
             # If node has a mesh
             if node_mesh is not None:
@@ -235,12 +217,12 @@ class synthetic_camera(threading.Thread):
                 # A node may have several child nodes
                 for child_node in glb.model.nodes[main_node].children:
                     translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
-                    frame_child_node = self.Transform2Euler(np.append(translation_node,rotation_node))
+                    frame_child_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
                     scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
                     child_node_mesh = glb.model.nodes[child_node].mesh
                     glPushMatrix()
                     glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
-                    glRotatef(-frame_child_node[5], 1, 0, 0); glRotatef(-frame_child_node[3], 0, 0, 1); glRotatef(-frame_child_node[4], 0, 1, 0) 
+                    glRotatef(-frame_child_node[3], 1, 0, 0); glRotatef(-frame_child_node[4], 0, 1, 0); glRotatef(-frame_child_node[5], 0, 0, 1)
                     # If child node has a mesh
                     if child_node_mesh is not None:
                         mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
@@ -311,23 +293,23 @@ class synthetic_camera(threading.Thread):
 
         # Setup Camera
         glLoadIdentity()  
-        glRotatef(self.frame[4], 0, 1, 0); glRotatef(self.frame[3], 0, 0, 1); glRotatef(self.frame[5], 1, 0, 0)
+        glRotatef(90, 0, 1, 0); glRotatef(self.frame[5], 0, 0, 1);  glRotatef(self.frame[4], 0, 1, 0);  glRotatef(self.frame[3], 1, 0, 0)
         glTranslatef(-self.frame[0], -self.frame[1], -self.frame[2])
         
         # To load objects data
         for _, object_data in data.items():
-            obj_frame = self.Transform2Euler(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
+            obj_frame = Transform2EulerOpenGL(object_data.get('frame', [0, 0, 0, 0, 0, 0, 1]))
 
             glPushMatrix()
             glTranslatef(obj_frame[0], obj_frame[1], obj_frame[2])
-            glRotatef(-obj_frame[5], 1, 0, 0); glRotatef(-obj_frame[3], 0, 0, 1); glRotatef(-obj_frame[4], 0, 1, 0)
+            glRotatef(-obj_frame[3], 1, 0, 0); glRotatef(-obj_frame[4], 0, 1, 0); glRotatef(-obj_frame[5], 0, 0, 1)
 
             for shape_name in object_data['shapes']:
-                shape_orig = self.Transform2Euler(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
+                shape_orig = Transform2EulerOpenGL(object_data['shapes'][shape_name].get('origin', [0, 0, 0, 0, 0, 0, 1]))
 
                 glPushMatrix()
                 glTranslatef(shape_orig[0], shape_orig[1], shape_orig[2])
-                glRotatef(-shape_orig[5], 1, 0, 0); glRotatef(-shape_orig[3], 0, 0, 1); glRotatef(-shape_orig[4], 0, 1, 0);
+                glRotatef(-shape_orig[3], 1, 0, 0); glRotatef(-shape_orig[4], 0, 1, 0); glRotatef(-shape_orig[5], 0, 0, 1)
 
                 shape_type = object_data['shapes'][shape_name].get('type')
                 if shape_type == 'plane':
