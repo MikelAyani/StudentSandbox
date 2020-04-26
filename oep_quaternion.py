@@ -20,18 +20,9 @@ def Transform2Euler(transform):
     return [x, y, z, R, P, Y]
 
 def Transform2EulerOpenGL(transform):
-    [x, y, z, qx, qy, qz, qw] = transform
-    try:
-        R = math.atan2(2*(qw*qx + qy*qz), 1 - 2*(qx*qx + qy*qy))
-        Y = math.atan2(2*(qw*qz + qx*qy), 1 - 2*(qy*qy + qz*qz))
-        P = math.asin(2*(qw*qy - qz*qx))
-    except:
-        if (qw*qy > qz*qx):
-            P = np.pi*0.5
-        else:
-            P = -np.pi*0.5
-
-    return [x, z, y, np.rad2deg(R), np.rad2deg(Y), np.rad2deg(P)]
+    ret = Transform2Euler(transform)
+    # Change RPY to PYR and convert to degrees
+    return [ret[0], ret[2], ret[1], np.rad2deg(ret[4]), np.rad2deg(ret[5]), np.rad2deg(ret[3])] 
 
 def Transform2Quat(transform):
     """ Converts RPY angles in degrees to quaternion.
