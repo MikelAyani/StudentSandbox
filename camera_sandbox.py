@@ -246,6 +246,9 @@ class synthetic_camera(threading.Thread):
                     'shape_name':
                         'origin': (optional) (float[7]) shape local frame relative to the object [x, y, z, qx, qy, qz, qw],
                         'type': (str) shape type: 'plane', 'box', 'cylinder', 'sphere', 'capsule', 'mesh'
+                        'material': (optional) shape material. May include one of the following options.
+                            'color': (float[4]) rgba values
+                            'texture': (str) path to the texture (PNG, JPG,... file)
                         'attributes': shape specific attributes
                             # plane
                             'normal': (float[3]) x, y, z normal vector of the plane
