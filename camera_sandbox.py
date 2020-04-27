@@ -82,40 +82,102 @@ class synthetic_camera(threading.Thread):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
         self.frame = Transform2EulerOpenGL(frame)
 
-    def render_Box(self, vectorLWH):
+    def get_Texture(self, material):
+        texture_data = png.Reader(filename=material).read_flat()
+        tex_array = np.array(texture_data[2], np.int8).reshape(texture_data[0]*texture_data[1], 3)
+        
+        texture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, texture)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_data[0], texture_data[1], 0, GL_RGB, GL_UNSIGNED_BYTE, tex_array)
+        glGenerateMipmap(GL_TEXTURE_2D)
+
+    def render_Box(self, vectorLWH, material):
         """ Render a box given vector[Length, Width, Height]"""
         L=vectorLWH[0]/2
         W=vectorLWH[1]/2
         H=vectorLWH[2]/2
-        glBegin(GL_QUADS)
-        glColor3f(1,1,1)
-        glVertex3f(-L, -H, -W);  glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(-L, -H, W) #1 2 3 4
-        glVertex3f(-L, H, -W); glVertex3f(L, H, -W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #5 6 7 8
-        glVertex3f(-L, -H, -W); glVertex3f(L, -H, -W); glVertex3f(L, H, -W); glVertex3f(-L, H, -W) #1 2 6 5
-        glVertex3f(-L, -H, W); glVertex3f(L, -H, W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #4 3 7 8
-        glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(L, H, W); glVertex3f(L, H, -W) #2 3 7 6
-        glVertex3f(-L, -H, -W); glVertex3f(-L, -H, W); glVertex3f(-L, H, W); glVertex3f(-L, H, -W) #1 4 8 5
-        glEnd()
 
-    def render_Capsule(self, radius, length):
+        if isinstance(material, list): 
+            glColor4f(material[0], material[1], material[2], material[3])
+            glBegin(GL_QUADS)
+            glVertex3f(-L, -H, -W);  glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(-L, -H, W) #1 2 3 4
+            glVertex3f(-L, H, -W); glVertex3f(L, H, -W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #5 6 7 8
+            glVertex3f(-L, -H, -W); glVertex3f(L, -H, -W); glVertex3f(L, H, -W); glVertex3f(-L, H, -W) #1 2 6 5
+            glVertex3f(-L, -H, W); glVertex3f(L, -H, W); glVertex3f(L, H, W); glVertex3f(-L, H, W) #4 3 7 8
+            glVertex3f(L, -H, -W); glVertex3f(L, -H, W); glVertex3f(L, H, W); glVertex3f(L, H, -W) #2 3 7 6
+            glVertex3f(-L, -H, -W); glVertex3f(-L, -H, W); glVertex3f(-L, H, W); glVertex3f(-L, H, -W) #1 4 8 5
+            glEnd()
+        else:
+            self.get_Texture(material)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0.0, 0.0);glVertex3f(-L, -H, -W);glTexCoord2f(1.0, 0.0);glVertex3f(L, -H, -W);glTexCoord2f(1.0, 1.0);glVertex3f(L, -H, W);glTexCoord2f(0.0, 1.0);glVertex3f(-L, -H, W) #1 2 3 4
+            glTexCoord2f(0.0, 0.0);glVertex3f(-L, H, -W);glTexCoord2f(1.0, 0.0);glVertex3f(L, H, -W);glTexCoord2f(1.0, 1.0);glVertex3f(L, H, W);glTexCoord2f(0.0, 1.0);glVertex3f(-L, H, W) #5 6 7 8
+            glTexCoord2f(0.0, 0.0);glVertex3f(-L, -H, -W);glTexCoord2f(1.0, 0.0);glVertex3f(L, -H, -W);glTexCoord2f(1.0, 1.0);glVertex3f(L, H, -W);glTexCoord2f(0.0, 1.0);glVertex3f(-L, H, -W) #1 2 6 5
+            glTexCoord2f(0.0, 0.0);glVertex3f(-L, -H, W);glTexCoord2f(1.0, 0.0);glVertex3f(L, -H, W);glTexCoord2f(1.0, 1.0);glVertex3f(L, H, W);glTexCoord2f(0.0, 1.0);glVertex3f(-L, H, W) #4 3 7 8
+            glTexCoord2f(0.0, 0.0);glVertex3f(L, -H, -W);glTexCoord2f(1.0, 0.0);glVertex3f(L, -H, W);glTexCoord2f(1.0, 1.0);glVertex3f(L, H, W);glTexCoord2f(0.0, 1.0);glVertex3f(L, H, -W) #2 3 7 6
+            glTexCoord2f(0.0, 0.0);glVertex3f(-L, -H, -W);glTexCoord2f(1.0, 0.0);glVertex3f(-L, -H, W);glTexCoord2f(1.0, 1.0);glVertex3f(-L, H, W);glTexCoord2f(0.0, 1.0);glVertex3f(-L, H, -W) #1 4 8 5
+            glEnd()
+            glBindTexture(GL_TEXTURE_2D, 0)
+
+    def render_Capsule(self, radius, length, material):
         """ Render capsule given radius and length"""
-        glColor3f(1, 1, 1)
-        capsuleQ = gluNewQuadric()
-        glTranslatef(0, 0, -length/2)
-        gluCylinder(capsuleQ, radius, radius, length, 100, 100)
-        gluSphere(capsuleQ, radius, 36, 18)
-        glTranslatef(0, 0, length)
-        gluSphere(capsuleQ, radius, 36, 18)
+        if isinstance(material, list): 
+            glColor4f(material[0], material[1], material[2], material[3])
+            capsuleQ = gluNewQuadric()
+            glTranslatef(0, 0, -length/2)
+            gluCylinder(capsuleQ, radius, radius, length, 100, 100)
+            gluSphere(capsuleQ, radius, 36, 18)
+            glTranslatef(0, 0, length)
+            gluSphere(capsuleQ, radius, 36, 18)
+        else:
+            self.get_Texture(material)
+            capsuleQ = gluNewQuadric()
+            gluQuadricNormals(capsuleQ, GLU_SMOOTH)
+            gluQuadricTexture(capsuleQ, GL_TRUE)
+            glTranslatef(0, 0, -length/2)
+            gluCylinder(capsuleQ, radius, radius, length, 100, 100)
+            gluSphere(capsuleQ, radius, 36, 18)
+            glTranslatef(0, 0, length)
+            gluSphere(capsuleQ, radius, 36, 18)
+            glBindTexture(GL_TEXTURE_2D, 0)
 
-    def render_Cylinder(self, radius, length):
+    def render_Cylinder(self, radius, length, material):
         """ Render cylinder given radius and length"""
-        glColor3f(1, 1, 1)
-        cylinderQ = gluNewQuadric()
-        glTranslatef(0, 0, -length/2)
-        gluCylinder(cylinderQ, radius, radius, length, 100, 100)
-        gluDisk(cylinderQ, 0.0, radius, 64, 1) 
-        glTranslatef(0, 0, length)
-        gluDisk(cylinderQ, 0.0, radius, 64, 1)  
+        if isinstance(material, list): 
+            glColor4f(material[0], material[1], material[2], material[3])
+            cylinderQ = gluNewQuadric()
+            glTranslatef(0, 0, -length/2)
+            gluCylinder(cylinderQ, radius, radius, length, 100, 100)
+            gluDisk(cylinderQ, 0.0, radius, 64, 1) 
+            glTranslatef(0, 0, length)
+            gluDisk(cylinderQ, 0.0, radius, 64, 1)
+        else:
+            self.get_Texture(material)
+            cylinderQ = gluNewQuadric()
+            gluQuadricNormals(cylinderQ, GLU_SMOOTH)
+            gluQuadricTexture(cylinderQ, GL_TRUE)
+            glTranslatef(0, 0, -length/2)
+            gluCylinder(cylinderQ, radius, radius, length, 100, 100)
+            gluDisk(cylinderQ, 0.0, radius, 64, 1) 
+            glTranslatef(0, 0, length)
+            gluDisk(cylinderQ, 0.0, radius, 64, 1)
+            glBindTexture(GL_TEXTURE_2D, 0)
+
+    def render_Sphere(self, radius, material):
+        sphereQ = gluNewQuadric()
+        if isinstance(material, list):
+            glColor4f(material[0], material[1], material[2], material[3])
+            gluSphere(sphereQ, radius, 36, 18)
+        else: 
+            self.get_Texture(material)
+            gluQuadricNormals(sphereQ, GLU_SMOOTH)
+            gluQuadricTexture(sphereQ, GL_TRUE)
+            gluSphere(sphereQ, radius, 36, 18)
+            glBindTexture(GL_TEXTURE_2D, 0)        
 
     def render_Plane(self, normal):
         """ Render 2D plane given its normal vector[x, y, z]"""
@@ -126,13 +188,10 @@ class synthetic_camera(threading.Thread):
         glRotatef(yAngle, 0, 1, 0)
         glRotatef(zAngle, 0, 0, 1)
         glBegin(GL_QUADS)
-        glColor3f(1, 0, 0)
-        glVertex3f(-100, 0, 100)        
-        glVertex3f(100, 0, 100)        
-        glVertex3f(100, 0, -100)        
-        glVertex3f(-100, 0, -100)
+        glColor4f(0.953, 0.953, 0.953, 1)
+        glVertex3f(-100, 0, 100);glVertex3f(100, 0, 100);glVertex3f(100, 0, -100);glVertex3f(-100, 0, -100)
         glEnd()
-
+        
     def render_glb_with_textures(self, glb, primitive, scale):
         """ Render glb primitive with textures"""
         vertices = primitive['POSITION']
@@ -179,6 +238,7 @@ class synthetic_camera(threading.Thread):
         faces = np.reshape(primitive['indices'], (-1, 3))
         
         glBegin(GL_TRIANGLES)
+        glColor4f(0.765, 0.765, 0.765, 1)
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
             glVertex3fv(scale*vertices[faces[a,1]])
@@ -313,25 +373,33 @@ class synthetic_camera(threading.Thread):
 
                 glPushMatrix()
                 glTranslatef(shape_orig[0], shape_orig[1], shape_orig[2])
-                glRotatef(-shape_orig[5], 1, 0, 0); glRotatef(-shape_orig[3], 0, 0, 1); glRotatef(-shape_orig[4], 0, 1, 0);
+                glRotatef(-shape_orig[5], 1, 0, 0); glRotatef(-shape_orig[3], 0, 0, 1); glRotatef(-shape_orig[4], 0, 1, 0)
 
                 shape_type = object_data['shapes'][shape_name].get('type')
+                
+                if object_data['shapes'][shape_name].get('material') is not None:
+                    if object_data['shapes'][shape_name]['material'].get('color') is not None:
+                        shape_material = object_data['shapes'][shape_name]['material'].get('color')
+                    elif object_data['shapes'][shape_name]['material'].get('texture') is not None and self.format != 'D': 
+                        shape_material = object_data['shapes'][shape_name]['material'].get('texture')
+                        print("path to PNG: " + shape_material)
+                    else:
+                        shape_material = [0.765, 0.765, 0.765, 1]
+                else:
+                    shape_material = [0.765, 0.765, 0.765, 1]
+
+
                 if shape_type == 'plane':
                     self.render_Plane(object_data['shapes'][shape_name]['attributes'].get('normal'))
                 elif shape_type == 'box':
-                    self.render_Box(object_data['shapes'][shape_name]['attributes'].get('sizes'))
+                    self.render_Box(object_data['shapes'][shape_name]['attributes'].get('sizes'), shape_material)
                 elif shape_type == 'cylinder':
-                    self.render_Cylinder(object_data['shapes'][shape_name]['attributes'].get('radius'), object_data['shapes'][shape_name]['attributes'].get('length'))
+                    self.render_Cylinder(object_data['shapes'][shape_name]['attributes'].get('radius'), object_data['shapes'][shape_name]['attributes'].get('length'), shape_material)
                 elif shape_type == 'capsule':
-                    self.render_Capsule(object_data['shapes'][shape_name]['attributes'].get('radius'), object_data['shapes'][shape_name]['attributes'].get('length'))
+                    self.render_Capsule(object_data['shapes'][shape_name]['attributes'].get('radius'), object_data['shapes'][shape_name]['attributes'].get('length'), shape_material)
                 elif shape_type == 'sphere':
-                    sphereQ = gluNewQuadric()
-                    gluSphere(sphereQ, object_data['shapes'][shape_name]['attributes'].get('radius'), 36, 18)
+                    self.render_Sphere(object_data['shapes'][shape_name]['attributes'].get('radius'), shape_material)
                 elif shape_type == 'mesh':
-                    # if 'cache' not in object_data['shapes'][shape_name]:
-                    #     # Load cache
-                    #     object_data['shapes'][shape_name]['cache'] = self.get_glb_cache(object_data['shapes'][shape_name])
-                    # self.draw_glb(object_data['shapes'][shape_name]['cache'])
                     self.render_glb(object_data['shapes'][shape_name]['attributes'].get('model'), object_data['shapes'][shape_name]['attributes'].get('scale'))
                 
                 glPopMatrix()
