@@ -83,8 +83,11 @@ class synthetic_camera(threading.Thread):
         self.frame = Transform2EulerOpenGL(frame)
 
     def get_Texture(self, material):
-        texture_data = png.Reader(filename=material).read_flat()
-        tex_array = np.array(texture_data[2], np.int8).reshape(texture_data[0]*texture_data[1], 3)
+        
+        #texture_data = png.Reader(filename=material).read_flat()
+        #tex_array = np.array(texture_data[2], np.int8)
+        texture_data = png.Reader(filename=material).asRGB()
+        tex_array = np.vstack(map(np.int8, texture_data[2])).reshape(texture_data[0]*texture_data[1], 3)
         
         texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texture)
@@ -207,7 +210,7 @@ class synthetic_camera(threading.Thread):
 
         texture_data = png.Reader(bytes=texture_bytes).read_flat()
         tex_array = np.array(texture_data[2], np.int8).reshape(texture_data[0]*texture_data[1], 3)
-        
+       
         texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texture)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
