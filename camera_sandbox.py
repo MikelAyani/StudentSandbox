@@ -18,7 +18,7 @@ The camera class is a thread wich will render the scene data sent through the pi
 
 class synthetic_camera(threading.Thread):
 
-    def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=2.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
+    def __init__(self, name:str='camera', pipe=None, width:int=800, height:int=600, vertical_fov:float=45.0, near:float=0.1, far:float=10.0, image_format:str='RGB', output_path:str='', send_response:bool=False):
         """ Constructor. """
         # Inherit
         threading.Thread.__init__(self, name=name, daemon=True)
