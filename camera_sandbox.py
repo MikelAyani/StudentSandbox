@@ -82,12 +82,16 @@ class synthetic_camera(threading.Thread):
         """ Sets the camera frame from [x, y, z, X, Y, Z, W]"""
         self.frame = Transform2EulerOpenGL(frame)
 
-    def get_Texture(self, material):
+    def get_Texture(self, data, bytes=False):
+        """ Creates texture to apply to any figure given the image data. By default the image data is given by a path,
+        but it can be given also as bytes if the variable 'bytes' is True"""
         
-        #texture_data = png.Reader(filename=material).read_flat()
-        #tex_array = np.array(texture_data[2], np.int8)
-        texture_data = png.Reader(filename=material).asRGB()
-        tex_array = np.vstack(map(np.int8, texture_data[2])).reshape(texture_data[0]*texture_data[1], 3)
+        if bytes == False:
+            texture_data = png.Reader(filename=data).asRGB()
+            tex_array = np.vstack(map(np.uint8, texture_data[2])).reshape(texture_data[0]*texture_data[1], 3)
+        else:
+            texture_data = png.Reader(bytes=data).read_flat()
+            tex_array = np.array(texture_data[2], np.uint8).reshape(texture_data[0]*texture_data[1], 3)
         
         texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texture)
@@ -95,7 +99,7 @@ class synthetic_camera(threading.Thread):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_data[0], texture_data[1], 0, GL_RGB, GL_UNSIGNED_BYTE, tex_array)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_data[0], texture_data[1], 0, GL_RGB, GL_FLOAT, tex_array/255)
         glGenerateMipmap(GL_TEXTURE_2D)
 
     def render_Box(self, vectorLWH, material):
@@ -208,17 +212,7 @@ class synthetic_camera(threading.Thread):
         text_ID = primitive['material'].pbrMetallicRoughness.baseColorTexture.index
         _, texture_bytes = get_texture(glb, text_ID)
 
-        texture_data = png.Reader(bytes=texture_bytes).read_flat()
-        tex_array = np.array(texture_data[2], np.int8).reshape(texture_data[0]*texture_data[1], 3)
-       
-        texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, texture)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_data[0], texture_data[1], 0, GL_RGB, GL_UNSIGNED_BYTE, tex_array)
-        glGenerateMipmap(GL_TEXTURE_2D)
+        self.get_Texture(texture_bytes, bytes=True)
         glBegin(GL_TRIANGLES)
         for a in range(len(faces)):
             glTexCoord2dv(UV[faces[a,0]])
