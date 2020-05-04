@@ -233,9 +233,16 @@ class synthetic_camera(threading.Thread):
         new_vertices[:, 2] = vertices[:, 1]
         vertices = new_vertices
         faces = np.reshape(primitive['indices'], (-1, 3))
-        
         glBegin(GL_TRIANGLES)
-        glColor4f(0.765, 0.765, 0.765, 1)
+        if primitive['material'] is not None and primitive['material'].pbrMetallicRoughness.baseColorFactor is not None:
+            color = primitive['material'].pbrMetallicRoughness.baseColorFactor
+        else:
+            try:
+                color = primitive['COLOR_0'][0]/255
+            except Exception as e:
+                color = [0.765, 0.765, 0.765, 1]
+                
+        glColor4f(color[0], color[1], color[2], color[3])
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
             glVertex3fv(scale*vertices[faces[a,1]])
