@@ -41,7 +41,7 @@ class synthetic_camera(threading.Thread):
 
             # Create window
             glfw.window_hint(glfw.VISIBLE, False)
-            window = glfw.create_window(800, 600, "hidden window", None, None)
+            window = glfw.create_window(self.width, self.height, "hidden window", None, None)
             glfw.make_context_current(window)
 
             # Initialize
