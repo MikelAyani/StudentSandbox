@@ -255,8 +255,9 @@ class synthetic_camera(threading.Thread):
         #_dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
         #_shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
         try:
-            glb = GLTF.load_glb(path_to_file)    
-
+            print("x")
+            glb = GLTF.load_glb(path_to_file) 
+            print("a") 
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
             
@@ -285,7 +286,6 @@ class synthetic_camera(threading.Thread):
                 frame_main_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
                 scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
                 node_mesh = glb.model.nodes[main_node].mesh
-                
                 glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
                 glRotatef(-frame_main_node[5], 1, 0, 0); glRotatef(-frame_main_node[3], 0, 0, 1); glRotatef(-frame_main_node[4], 0, 1, 0) 
 
@@ -489,3 +489,40 @@ class synthetic_camera(threading.Thread):
             #Combine them for RGBD
             matRGBD = np.append(matColor, matD, axis=1).reshape(self.height, self.width*4)
             png.from_array(matRGBD, mode="RGBA").save(self.output_path)
+
+
+
+if __name__ == '__main__':
+    import time
+    from multiprocessing import Pipe
+    # Create some dummy data
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/CajaC.glb', 'scale': [1.0, 1.0, 1.0]}}}}}   
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/duck_good3.glb', 'scale': [1.0, 1.0, 1.0]}}}}}   
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, 0, 0, 0, 1], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/pato_grande.glb', 'scale': [1.0, 1.0, 1.0]}}}}} 
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/Engranajes/GearD.glb', 'scale': [0.01, 0.01, 0.01]}}}}}
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/Engranajes/conveyor.glb', 'scale': [1, 1, 1]}}}}}
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Simumatik/b59ff86c-03d3-11ea-b8aa-063ea404e626.glb', 'scale': [1, 1, 1]}}}}}
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Simumatik/d4b425d6-03d2-11ea-b8aa-063ea404e626.glb', 'scale': [1, 1, 1]}}}}}
+    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/PLC.glb', 'scale': [1, 1, 1]}}}}}
+
+
+    # Create camera
+    pipe, camera_pipe = Pipe()
+    camera = synthetic_camera(
+        pipe=camera_pipe, 
+        image_format='RGB', 
+        output_path='test.png',
+        send_response=True)
+    camera.set_frame([-1.233, 0.01, 0.268, 0.0, 0.0, 0.0, 1.0])
+    camera.start()
+    print("Camera started.")
+    # Loop
+    counter = 0
+    start = time.perf_counter()
+    for i in range(1):
+        pipe.send(data)
+        print(pipe.recv())  
+    # Stop
+    camera.stop()
+    camera.join()
+    print("Camera destroyed.")
