@@ -226,6 +226,7 @@ class synthetic_camera(threading.Thread):
 
     def render_glb_without_textures(self, primitive, scale):
         """ Render glb primitive without colors or textures"""
+        print("RenderGLBprimitive")
         vertices = primitive['POSITION']
         new_vertices = np.zeros([len(vertices), 3])
         new_vertices[:, 0] = vertices[:, 0]
@@ -241,26 +242,30 @@ class synthetic_camera(threading.Thread):
                 color = primitive['material'].pbrMetallicRoughness.baseColorFactor
             else:
                 color = [0.765, 0.765, 0.765, 1]
-
+        
         glBegin(GL_TRIANGLES)       
         glColor4f(color[0], color[1], color[2], color[3])
+        print(vertices.shape)
+        print(faces.shape)
+        print(np.max(faces))
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
             glVertex3fv(scale*vertices[faces[a,1]])
             glVertex3fv(scale*vertices[faces[a,2]])
         glEnd()
+        print("FinishRenderdata")
 
     def render_glb(self, path_to_file, scale):
         """ Render glb archive limited to the main node and his children"""
         #_dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
         #_shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
         try:
-            print("x")
-            glb = GLTF.load_glb(path_to_file) 
-            print("a") 
+            
+            glb = GLTF.load_glb(path_to_file, load_file_resources=True)
+            
             # First level
             main_node = glb.model.scene # Scene is a pointer to the main node
-            
+            print(glb.model.nodes)
             if glb.model.nodes[main_node].children is None and len(glb.model.nodes)>1: #This means that glb has only-one flat level structure of nodes
                 for node_index in range(len(glb.model.nodes)):
                     glPushMatrix()
@@ -275,10 +280,13 @@ class synthetic_camera(threading.Thread):
                         mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                         # A mesh may have several primitives
                         for primitive in mesh_data['primitives']:
-                            if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                                self.render_glb_with_textures(glb, primitive, scale_node)
-                            else:
-                                self.render_glb_without_textures(primitive, scale_node)
+                            try:
+                                if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
+                                    self.render_glb_with_textures(glb, primitive, scale_node)
+                                else:
+                                    self.render_glb_without_textures(primitive, scale_node)
+                            except:
+                                pass
                     glPopMatrix()
 
             else:
@@ -294,10 +302,13 @@ class synthetic_camera(threading.Thread):
                     mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                     # A mesh may have several primitives
                     for primitive in mesh_data['primitives']:
-                        if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                            self.render_glb_with_textures(glb, primitive, scale_main_node)
-                        else:
-                            self.render_glb_without_textures(primitive, scale_main_node)
+                        try:
+                            if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
+                                self.render_glb_with_textures(glb, primitive, scale_main_node)
+                            else:
+                                self.render_glb_without_textures(primitive, scale_main_node)
+                        except:
+                            pass
 
                 # Second level
                 if glb.model.nodes[main_node].children is not None:
@@ -315,10 +326,13 @@ class synthetic_camera(threading.Thread):
                             mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
                             # A mesh may have several primitives
                             for primitive in mesh_data['primitives']:
-                                if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                                    self.render_glb_with_textures(glb, primitive, scale_child_node)
-                                else:
-                                    self.render_glb_without_textures(primitive, scale_child_node)
+                                try:
+                                    if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
+                                        self.render_glb_with_textures(glb, primitive, scale_child_node)
+                                    else:
+                                        self.render_glb_without_textures(primitive, scale_child_node)
+                                except:
+                                    pass
                         glPopMatrix()    
                     
         except Exception as e:
@@ -500,11 +514,12 @@ if __name__ == '__main__':
     #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/duck_good3.glb', 'scale': [1.0, 1.0, 1.0]}}}}}   
     #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, 0, 0, 0, 1], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/pato_grande.glb', 'scale': [1.0, 1.0, 1.0]}}}}} 
     #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/Engranajes/GearD.glb', 'scale': [0.01, 0.01, 0.01]}}}}}
-    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/Engranajes/conveyor.glb', 'scale': [1, 1, 1]}}}}}
+    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Desktop/Engranajes/conveyor.glb', 'scale': [1, 1, 1]}}}}}
     #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Simumatik/b59ff86c-03d3-11ea-b8aa-063ea404e626.glb', 'scale': [1, 1, 1]}}}}}
-    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Simumatik/d4b425d6-03d2-11ea-b8aa-063ea404e626.glb', 'scale': [1, 1, 1]}}}}}
-    data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/PLC.glb', 'scale': [1, 1, 1]}}}}}
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik/Simumatik/d4b425d6-03d2-11ea-b8aa-063ea404e626.glb', 'scale': [1, 1, 1]}}}}} #Este fallaba por _load_glb_chunk
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'data/PLC.glb', 'scale': [1, 1, 1]}}}}}
 
+    #data = {'floor': {'frame': [0, 0, 0, 0, 0, 0, 1], 'shapes': {'plane': {'type': 'plane', 'attributes': {'normal': [0.0, 0.0, 1.0]}}}}, '269': {'frame': [0.135, 0.002, 0.074, -0.485, 0.515, 0.516, -0.483], 'shapes': {'275': {'type': 'mesh', 'attributes': {'model': 'C:\\Users\\Simumatik\Google Drive\TFG-PacoDani\GLB FILES/mask.glb', 'scale': [1, 1, 1]}}}}}
 
     # Create camera
     pipe, camera_pipe = Pipe()
