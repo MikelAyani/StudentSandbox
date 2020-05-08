@@ -226,7 +226,6 @@ class synthetic_camera(threading.Thread):
 
     def render_glb_without_textures(self, primitive, scale):
         """ Render glb primitive without colors or textures"""
-        print("RenderGLBprimitive")
         vertices = primitive['POSITION']
         new_vertices = np.zeros([len(vertices), 3])
         new_vertices[:, 0] = vertices[:, 0]
@@ -245,96 +244,71 @@ class synthetic_camera(threading.Thread):
         
         glBegin(GL_TRIANGLES)       
         glColor4f(color[0], color[1], color[2], color[3])
-        print(vertices.shape)
-        print(faces.shape)
-        print(np.max(faces))
         for a in range(len(faces)):
             glVertex3fv(scale*vertices[faces[a,0]])
             glVertex3fv(scale*vertices[faces[a,1]])
             glVertex3fv(scale*vertices[faces[a,2]])
         glEnd()
-        print("FinishRenderdata")
 
     def render_glb(self, path_to_file, scale):
         """ Render glb archive limited to the main node and his children"""
         #_dtypes = {5120: "<i1",5121: "<u1",5122: "<i2",5123: "<u2",5125: "<u4",5126: "<f4"}
         #_shapes = {"SCALAR": 1,"VEC2": (2),"VEC3": (3),"VEC4": (4),"MAT2": (2, 2),"MAT3": (3, 3),"MAT4": (4, 4)}
         try:
-            
             glb = GLTF.load_glb(path_to_file, load_file_resources=True)
             
-            # First level
-            main_node = glb.model.scene # Scene is a pointer to the main node
-            print(glb.model.nodes)
-            if glb.model.nodes[main_node].children is None and len(glb.model.nodes)>1: #This means that glb has only-one flat level structure of nodes
-                for node_index in range(len(glb.model.nodes)):
-                    glPushMatrix()
-                    translation_node, rotation_node, scale_node = get_node_TRS(glb, node_index)
-                    frame_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
-                    scale_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
-                    node_mesh = glb.model.nodes[node_index].mesh
-                    glTranslatef(frame_node[0], frame_node[1], frame_node[2])
-                    glRotatef(-frame_node[5], 1, 0, 0); glRotatef(-frame_node[3], 0, 0, 1); glRotatef(-frame_node[4], 0, 1, 0)
-                    #If node has a mesh
-                    if node_mesh is not None: 
+            if glb.model.scene is not None:
+                scene = glb.model.scenes[glb.model.scene]
+                for main_node in scene.nodes:
+                    #First level   
+                    glPushMatrix()                 
+                    translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
+                    frame_main_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
+                    scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
+                    node_mesh = glb.model.nodes[main_node].mesh
+                    glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
+                    glRotatef(-frame_main_node[5], 1, 0, 0); glRotatef(-frame_main_node[3], 0, 0, 1); glRotatef(-frame_main_node[4], 0, 1, 0) 
+
+                    # If node has a mesh
+                    if node_mesh is not None:
                         mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
                         # A mesh may have several primitives
                         for primitive in mesh_data['primitives']:
                             try:
                                 if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                                    self.render_glb_with_textures(glb, primitive, scale_node)
+                                    self.render_glb_with_textures(glb, primitive, scale_main_node)
                                 else:
-                                    self.render_glb_without_textures(primitive, scale_node)
+                                    self.render_glb_without_textures(primitive, scale_main_node)
                             except:
                                 pass
+
+                    # Second level
+                    if glb.model.nodes[main_node].children is not None:
+                        # A node may have several child nodes
+                        for child_node in glb.model.nodes[main_node].children:
+                            translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
+                            frame_child_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
+                            scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
+                            child_node_mesh = glb.model.nodes[child_node].mesh
+                            glPushMatrix()
+                            glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
+                            glRotatef(-frame_child_node[5], 1, 0, 0); glRotatef(-frame_child_node[3], 0, 0, 1); glRotatef(-frame_child_node[4], 0, 1, 0) 
+                            # If child node has a mesh
+                            if child_node_mesh is not None:
+                                mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
+                                # A mesh may have several primitives
+                                for primitive in mesh_data['primitives']:
+                                    try:
+                                        if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
+                                            self.render_glb_with_textures(glb, primitive, scale_child_node)
+                                        else:
+                                            self.render_glb_without_textures(primitive, scale_child_node)
+                                    except:
+                                        pass
+                            glPopMatrix()    
+
                     glPopMatrix()
 
-            else:
-                translation_node, rotation_node, scale_node = get_node_TRS(glb, main_node)
-                frame_main_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
-                scale_main_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
-                node_mesh = glb.model.nodes[main_node].mesh
-                glTranslatef(frame_main_node[0], frame_main_node[1], frame_main_node[2])
-                glRotatef(-frame_main_node[5], 1, 0, 0); glRotatef(-frame_main_node[3], 0, 0, 1); glRotatef(-frame_main_node[4], 0, 1, 0) 
-
-                # If node has a mesh
-                if node_mesh is not None:
-                    mesh_data = get_mesh_data(glb, node_mesh, vertex_only=False)
-                    # A mesh may have several primitives
-                    for primitive in mesh_data['primitives']:
-                        try:
-                            if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                                self.render_glb_with_textures(glb, primitive, scale_main_node)
-                            else:
-                                self.render_glb_without_textures(primitive, scale_main_node)
-                        except:
-                            pass
-
-                # Second level
-                if glb.model.nodes[main_node].children is not None:
-                    # A node may have several child nodes
-                    for child_node in glb.model.nodes[main_node].children:
-                        translation_node, rotation_node, scale_node = get_node_TRS(glb, child_node)
-                        frame_child_node = Transform2EulerOpenGL(np.append(translation_node,rotation_node))
-                        scale_child_node = [scale[0]*scale_node[0], scale[2]*scale_node[2], scale[1]*scale_node[1]] #Modified because OpenGL has the axis changed respected to Simumatik
-                        child_node_mesh = glb.model.nodes[child_node].mesh
-                        glPushMatrix()
-                        glTranslatef(frame_child_node[0], frame_child_node[1], frame_child_node[2])
-                        glRotatef(-frame_child_node[5], 1, 0, 0); glRotatef(-frame_child_node[3], 0, 0, 1); glRotatef(-frame_child_node[4], 0, 1, 0) 
-                        # If child node has a mesh
-                        if child_node_mesh is not None:
-                            mesh_data = get_mesh_data(glb, child_node_mesh, vertex_only=False)
-                            # A mesh may have several primitives
-                            for primitive in mesh_data['primitives']:
-                                try:
-                                    if primitive['TEXCOORD_0'] is not None and self.format != 'D' and primitive['material'].pbrMetallicRoughness.baseColorTexture is not None:
-                                        self.render_glb_with_textures(glb, primitive, scale_child_node)
-                                    else:
-                                        self.render_glb_without_textures(primitive, scale_child_node)
-                                except:
-                                    pass
-                        glPopMatrix()    
-                    
         except Exception as e:
             print('Exception loading', path_to_file, e)  
 
